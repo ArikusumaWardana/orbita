@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createTask as createTaskAction,
@@ -26,6 +27,7 @@ import {
   setTaskCompleted,
 } from "@/app/actions/tasks";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { NotificationCenter } from "@/components/notification-center";
 import { Task } from "@/lib/tasks";
 
 function localDateTimeValue(date = new Date()) {
@@ -165,15 +167,15 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
           <button type="button" className="nav-item active" aria-current="page" onClick={() => setView("active")}>
             <CheckSquare2 aria-hidden="true" /> <span>Task</span>
           </button>
-          <span className="nav-item unavailable" aria-disabled="true"><CalendarDays aria-hidden="true" /><span>Agenda</span><small>Segera</small></span>
+          <Link className="nav-item" href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
           <span className="nav-item unavailable" aria-disabled="true"><WalletCards aria-hidden="true" /><span>Keuangan</span><small>Segera</small></span>
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in-user">Masuk sebagai <strong>{userName}</strong></p>
-        <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Gunakan tema ${theme === "dark" ? "terang" : "gelap"}`}>
-          {theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-          <span>{theme === "dark" ? "Tema terang" : "Tema gelap"}</span>
-        </button>
+          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Gunakan tema ${theme === "dark" ? "terang" : "gelap"}`}>
+            {theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            <span>{theme === "dark" ? "Tema terang" : "Tema gelap"}</span>
+          </button>
           <SignOutButton />
         </div>
       </aside>
@@ -185,11 +187,12 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
             <h1>Task</h1>
           </div>
           <div className="top-actions">
+            <NotificationCenter />
             <button type="button" className="icon-button mobile-theme" onClick={toggleTheme} aria-label={`Gunakan tema ${theme === "dark" ? "terang" : "gelap"}`}>
               {theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             </button>
             <button type="button" className="primary-button" onClick={() => setDialogOpen(true)}>
-              <Plus aria-hidden="true" /> Tambah task
+              <Plus aria-hidden="true" /> Task
             </button>
           </div>
         </header>
@@ -237,7 +240,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
       <nav className="bottom-nav" aria-label="Navigasi mobile">
         <button type="button" onClick={() => setView("active")}><Home aria-hidden="true" /><span>Hari ini</span></button>
         <button type="button" className="active" aria-current="page" onClick={() => setView("active")}><CheckSquare2 aria-hidden="true" /><span>Task</span></button>
-        <span aria-disabled="true"><CalendarDays aria-hidden="true" /><span>Agenda</span></span>
+        <Link href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
         <span aria-disabled="true"><WalletCards aria-hidden="true" /><span>Keuangan</span></span>
       </nav>
 

@@ -24,12 +24,12 @@ Status: implemented. Runtime verification with a real signed-in account remains 
 
 ## Slice 3: events and reminders
 
-- Event CRUD and default ten-minute reminder
-- Custom reminders and past-event view
-- Calendar month grid with task and event indicators
-- In-app notification feed, push subscription, and protected cron handler
+- Event CRUD, optional start/end time range, and default ten-minute reminder (implemented)
+- Custom reminder CRUD and past-event view (implemented)
+- Calendar month grid with task and event indicators (implemented)
+- In-app notification feed, push subscription, and protected cron handler (implemented; deployment configuration pending)
 
-Status: pending Slice 2.
+Status: implementation complete. Signed-in browser smoke testing and production configuration for `DATABASE_URL`, `CRON_SECRET`, and VAPID keys remain before Slice 3 can be marked deployment-verified.
 
 ## Slice 4: pocket ledger
 

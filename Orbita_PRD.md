@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD)
 ## Personal Dashboard & Productivity Hub
 
-**Versi:** 1.2 (Neon Auth diperbarui ke Managed Better Auth dengan verifikasi OTP)
+**Versi:** 1.3 (Agenda mendukung waktu tunggal atau rentang waktu)
 **Status:** Draft untuk review
 **Terakhir diperbarui:** 19 Agustus 2026
 
@@ -97,15 +97,17 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 
 **User Stories**
 - Sebagai pengguna, saya ingin membuat event dengan nama, deskripsi opsional, tanggal, dan jam, agar saya bisa mencatat agenda penting (meeting, janji, dll).
+- Sebagai pengguna, saya ingin memilih apakah agenda memiliki satu waktu atau rentang waktu mulai dan selesai, agar durasi kegiatan dapat dicatat bila diperlukan.
 - Sebagai pengguna, saya ingin mengatur waktu reminder custom (bukan hanya default), agar saya bisa diingatkan lebih awal untuk event penting (misal: H-1).
 - Sebagai pengguna, saya secara default ingin diingatkan 10 menit sebelum event dimulai tanpa harus mengatur manual.
 
 **Acceptance Criteria**
-- [ ] Form event: `title` (wajib), `description` (opsional), `event_date`, `event_time`, `location` (opsional, nice-to-have).
+- [ ] Form event: `title` (wajib), `description` (opsional), `event_at`, `location` (opsional), pilihan "Gunakan rentang waktu", dan `event_end_at` yang wajib hanya ketika rentang diaktifkan.
+- [ ] Jika rentang waktu diaktifkan, `event_end_at` harus lebih besar dari `event_at`. Jika tidak diaktifkan, `event_end_at` disimpan sebagai `null`.
 - [ ] Setiap event otomatis membuat 1 reminder default di `event_reminders` dengan `remind_at = event_datetime - interval '10 minutes'`.
 - [ ] User dapat menambah reminder tambahan (custom tanggal+jam bebas, bisa lebih dari satu, misal H-1 jam 08:00 & H-0 10 menit sebelum).
 - [ ] User dapat menghapus/mengedit reminder individual tanpa menghapus event induk.
-- [ ] Event yang sudah lewat (`event_datetime < now()`) otomatis dipindah ke tampilan "Past Events" (read-only, tidak trigger notifikasi baru).
+- [ ] Event dipindah ke "Past Events" setelah `coalesce(event_end_at, event_at) < now()` sehingga agenda berdurasi tetap aktif sampai waktu selesai.
 - [ ] Kalender view (bulanan) menampilkan dot indicator pada tanggal yang memiliki event/task.
 
 ---
@@ -271,8 +273,10 @@ create table public.events (
   description text,
   location text,
   event_at timestamptz not null,
+  event_end_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint events_time_range_check check (event_end_at is null or event_end_at > event_at)
 );
 
 create index idx_events_user_time on public.events(user_id, event_at);
