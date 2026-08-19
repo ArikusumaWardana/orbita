@@ -57,7 +57,7 @@ function formatEventTime(event: EventItem) {
   const endLabel = new Intl.DateTimeFormat("id-ID", sameDay
     ? { hour: "2-digit", minute: "2-digit" }
     : { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(end);
-  return `${startLabel} sampai ${endLabel}`;
+  return `${startLabel} - ${endLabel}`;
 }
 
 function dateKey(value: Date | string) {
@@ -82,6 +82,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [editing, setEditing] = useState<EventItem | null | undefined>(undefined);
   const [reminderTarget, setReminderTarget] = useState<{ event: EventItem; reminder?: EventReminder } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,14 +116,16 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
     showToast("success", editing ? "Agenda berhasil diperbarui." : "Agenda dan pengingat 10 menit berhasil dibuat.");
   }
 
-  async function removeEvent(event: EventItem) {
-    if (!window.confirm(`Hapus agenda “${event.title}” beserta pengingatnya?`)) return;
+  async function removeEvent() {
+    if (!deleteTarget) return;
     try {
-      await deleteEvent(event.id);
-      setEvents((current) => current.filter((item) => item.id !== event.id));
+      await deleteEvent(deleteTarget.id);
+      setEvents((current) => current.filter((item) => item.id !== deleteTarget.id));
+      setDeleteTarget(null);
       showToast("success", "Agenda berhasil dihapus.");
     } catch (caught) {
       showToast("error", caught instanceof Error ? caught.message : "Agenda belum dapat dihapus.");
+      throw caught;
     }
   }
 
@@ -197,7 +200,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
           ) : (
             <div className="event-list">
               <AnimatePresence initial={false}>
-                {visibleEvents.map((event) => <EventCard key={event.id} event={event} past={view === "past"} edit={() => setEditing(event)} remove={() => removeEvent(event)} addReminder={() => setReminderTarget({ event })} editReminder={(reminder) => setReminderTarget({ event, reminder })} removeReminder={(reminder) => removeReminder(event, reminder)} />)}
+                {visibleEvents.map((event) => <EventCard key={event.id} event={event} past={view === "past"} edit={() => setEditing(event)} remove={() => setDeleteTarget(event)} addReminder={() => setReminderTarget({ event })} editReminder={(reminder) => setReminderTarget({ event, reminder })} removeReminder={(reminder) => removeReminder(event, reminder)} />)}
               </AnimatePresence>
             </div>
           )}
@@ -213,6 +216,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
 
       <AnimatePresence>{editing !== undefined && <EventDialog event={editing} close={() => setEditing(undefined)} submit={saveEvent} />}</AnimatePresence>
       <AnimatePresence>{reminderTarget && <ReminderDialog target={reminderTarget} close={() => setReminderTarget(null)} submit={saveReminder} />}</AnimatePresence>
+      <AnimatePresence>{deleteTarget && <DeleteEventDialog event={deleteTarget} close={() => setDeleteTarget(null)} confirm={removeEvent} />}</AnimatePresence>
     </div>
   );
 }
@@ -263,6 +267,31 @@ function EventCard({ event, past, edit, remove, addReminder, editReminder, remov
     <div className="event-card-actions">{!past && <button type="button" className="secondary-button compact-button" onClick={edit}><Pencil /> Edit</button>}<button type="button" className="icon-button delete-button" onClick={remove} aria-label={`Hapus ${event.title}`}><Trash2 /></button></div>
     {!past && <div className="reminder-section"><div className="reminder-heading"><strong>Pengingat</strong><button type="button" onClick={addReminder}><Plus /> Tambah</button></div><ul>{event.reminders.map((reminder) => <li key={reminder.id}><Bell aria-hidden="true" /><span>{formatDateTime(reminder.remindAt)}{reminder.isDefault && <small>10 menit sebelum</small>}</span>{!reminder.isDefault && <><button type="button" className="icon-button" onClick={() => editReminder(reminder)} aria-label="Edit pengingat"><Pencil /></button><button type="button" className="icon-button delete-button" onClick={() => removeReminder(reminder)} aria-label="Hapus pengingat"><Trash2 /></button></>}</li>)}</ul></div>}
   </motion.article>;
+}
+
+function DeleteEventDialog({ event, close, confirm }: { event: EventItem; close: () => void; confirm: () => Promise<void> }) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    const keydown = (key: KeyboardEvent) => {
+      if (key.key === "Escape" && !deleting) close();
+    };
+    window.addEventListener("keydown", keydown);
+    cancelRef.current?.focus();
+    return () => window.removeEventListener("keydown", keydown);
+  }, [close, deleting]);
+
+  async function remove() {
+    setDeleting(true);
+    try {
+      await confirm();
+    } catch {
+      setDeleting(false);
+    }
+  }
+
+  return <motion.div className="dialog-backdrop confirm-dialog-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(pointer) => { if (!deleting && pointer.target === pointer.currentTarget) close(); }}><motion.div className="dialog confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-event-title" aria-describedby="delete-event-description" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}><div className="confirm-dialog-icon" aria-hidden="true"><Trash2 /></div><div><h2 id="delete-event-title">Hapus agenda?</h2><p id="delete-event-description">Agenda “{event.title}” dan seluruh pengingatnya akan dihapus permanen.</p></div><div className="dialog-actions"><button ref={cancelRef} type="button" className="secondary-button" onClick={close} disabled={deleting}>Batal</button><button type="button" className="danger-button" onClick={remove} disabled={deleting}>{deleting && <Loader2 className="spin" />}{deleting ? "Menghapus..." : "Hapus agenda"}</button></div></motion.div></motion.div>;
 }
 
 function EventDialog({ event, close, submit }: { event: EventItem | null; close: () => void; submit: (input: EventInput) => Promise<void> }) {
