@@ -18,8 +18,7 @@ export async function ensureOnboarding() {
     db.from("profiles").upsert({
       id: user.id,
       full_name: user.name ?? null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "id" }),
+    }, { onConflict: "id", ignoreDuplicates: true }),
     db.from("pockets").upsert({
       user_id: user.id,
       name: "Dompet Utama",
@@ -37,6 +36,14 @@ export async function ensureOnboarding() {
     ),
   ]);
 
-  const error = profile.error ?? pocket.error ?? categories.error;
-  if (error) throw new Error("Data awal akun belum dapat disiapkan. Coba masuk kembali.");
+  const failures = [
+    ["profile", profile.error],
+    ["pocket", pocket.error],
+    ["categories", categories.error],
+  ].filter((entry) => entry[1]);
+
+  if (failures.length > 0) {
+    console.error("Onboarding gagal", failures.map(([operation, error]) => ({ operation, error })));
+    throw new Error("Data awal akun belum dapat disiapkan. Coba masuk kembali.");
+  }
 }
