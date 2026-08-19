@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CalendarDays, CheckSquare2, Clock3, Home, Loader2, Moon, RotateCcw, Send, Sun, Trash2, WalletCards, X } from "lucide-react";
+import { Bot, CalendarDays, Check, CheckSquare2, CircleAlert, Clock3, Home, Loader2, Moon, RotateCcw, Send, Sun, Trash2, WalletCards, X } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { clearConversationHistory } from "@/app/actions/assistant";
@@ -18,6 +18,9 @@ const suggestions = [
   "Agenda apa yang paling dekat?",
 ];
 
+type BatchStatus = "pending" | "saving" | "success" | "error";
+type BatchItem = { id: string; draft: AssistantSuggestion; selected: boolean; status: BatchStatus; error: string };
+
 export function AssistantWorkspace({ initialMessages, initialRemaining, pockets, categories, userName }: { initialMessages: AssistantMessage[]; initialRemaining: number; pockets: Pocket[]; categories: Category[]; userName: string }) {
   const [messages, setMessages] = useState(initialMessages);
   const [remaining, setRemaining] = useState(initialRemaining);
@@ -26,7 +29,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [suggestion, setSuggestion] = useState<AssistantSuggestion | null>(null);
+  const [batch, setBatch] = useState<BatchItem[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { const value = localStorage.getItem("orbita.theme") === "light" ? "light" : "dark"; document.documentElement.dataset.theme = value; queueMicrotask(() => setTheme(value)); }, []);
@@ -46,7 +49,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
     const assistantId = crypto.randomUUID();
     setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "", createdAt: new Date().toISOString() }]);
     setDraft("");
-    setSuggestion(null);
+    setBatch([]);
     setSending(true);
     try {
       const response = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
@@ -71,7 +74,11 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
           if (event.type === "text") {
             receivedText = true;
             setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, content: item.content + event.value } : item));
-          } else if (event.type === "suggestion") setSuggestion(event.value);
+          } else if (event.type === "suggestion") setBatch((current) => {
+            const key = JSON.stringify(event.value);
+            if (current.length >= 10 || current.some((item) => JSON.stringify(item.draft) === key)) return current;
+            return [...current, { id: crypto.randomUUID(), draft: event.value, selected: true, status: "pending", error: "" }];
+          });
         }
       }
       if (!receivedText) throw new Error("Asisten tidak mengirim jawaban. Coba tulis pertanyaan dengan cara lain.");
@@ -89,7 +96,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
     try {
       await clearConversationHistory();
       setMessages([]);
-      setSuggestion(null);
+      setBatch([]);
       setConfirmClear(false);
       showToast("success", "Percakapan berhasil dikosongkan.");
     } catch (error) {
@@ -110,7 +117,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
         <div className="assistant-messages" aria-live="polite">
           {messages.length === 0 && <div className="assistant-empty"><span className="empty-orbit"><Bot /></span><h2>Apa yang ingin kamu periksa?</h2><p>Tanyakan rencana minggu ini, agenda terdekat, atau ringkasan pengeluaranmu.</p><div className="assistant-suggestions">{suggestions.map((item) => <button type="button" key={item} onClick={() => void sendMessage(item)}>{item}</button>)}</div></div>}
           {messages.map((item) => <article className={`assistant-message ${item.role}`} key={item.id}><span>{item.role === "user" ? "Kamu" : "Orbita"}</span><div>{!item.content && sending ? <span className="assistant-thinking"><Loader2 className="spin" /> Menyusun jawaban...</span> : item.content}</div></article>)}
-          {suggestion && <ActionDraftCard key={JSON.stringify(suggestion)} suggestion={suggestion} pockets={pockets} categories={categories} dismiss={() => setSuggestion(null)} confirmed={() => setSuggestion(null)} />}
+          {batch.length > 0 && <BatchActionPanel items={batch} setItems={setBatch} pockets={pockets} categories={categories} />}
           <div ref={endRef} />
         </div>
         <form className="assistant-composer" onSubmit={submit}><label htmlFor="assistant-message">Tulis pertanyaan</label><div><textarea id="assistant-message" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={2000} rows={2} placeholder="Contoh: Berapa pengeluaran terbesar saya bulan ini?" disabled={sending || remaining <= 0} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button className="primary-button" disabled={sending || !draft.trim() || remaining <= 0} aria-label="Kirim pertanyaan">{sending ? <Loader2 className="spin" /> : <Send />}</button></div><small>{remaining > 0 ? "Enter untuk mengirim, Shift + Enter untuk baris baru." : "Batas harian sudah tercapai."}</small></form>
@@ -127,39 +134,59 @@ function localDateTime(value: string) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-function ActionDraftCard({ suggestion, pockets, categories, dismiss, confirmed }: { suggestion: AssistantSuggestion; pockets: Pocket[]; categories: Category[]; dismiss: () => void; confirmed: () => void }) {
-  const [draft, setDraft] = useState(suggestion);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+async function executeDraft(draft: AssistantSuggestion) {
+  if (draft.type === "task") return createTask({ title: draft.title, description: draft.description, dueAt: draft.dueAt });
+  if (draft.type === "event") return createEventWithAdditionalReminders({ title: draft.title, description: draft.description, location: draft.location, eventAt: draft.eventAt, eventEndAt: draft.eventEndAt }, draft.reminders);
+  return createTransaction({ pocketId: draft.pocketId, categoryId: draft.categoryId, type: draft.transactionType, amount: draft.amount, description: draft.description, transactionDate: draft.transactionDate });
+}
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      if (draft.type === "task") await createTask({ title: draft.title, description: draft.description, dueAt: draft.dueAt });
-      if (draft.type === "event") await createEventWithAdditionalReminders({ title: draft.title, description: draft.description, location: draft.location, eventAt: draft.eventAt, eventEndAt: draft.eventEndAt }, draft.reminders);
-      if (draft.type === "transaction") await createTransaction({ pocketId: draft.pocketId, categoryId: draft.categoryId, type: draft.transactionType, amount: draft.amount, description: draft.description, transactionDate: draft.transactionDate });
-      const label = draft.type === "task" ? "Task" : draft.type === "event" ? "Agenda" : "Transaksi";
-      showToast("success", `${label} berhasil dibuat.`);
-      confirmed();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Draft belum dapat disimpan.");
-      setSaving(false);
+function BatchActionPanel({ items, setItems, pockets, categories }: { items: BatchItem[]; setItems: React.Dispatch<React.SetStateAction<BatchItem[]>>; pockets: Pocket[]; categories: Category[] }) {
+  const runnable = items.filter((item) => item.selected && (item.status === "pending" || item.status === "error"));
+  const busy = items.some((item) => item.status === "saving");
+  const successes = items.filter((item) => item.status === "success").length;
+  const failures = items.filter((item) => item.status === "error").length;
+  function update(id: string, change: Partial<BatchItem>) { setItems((current) => current.map((item) => item.id === id ? { ...item, ...change } : item)); }
+
+  async function confirmSelected() {
+    const queue = items.filter((item) => item.selected && (item.status === "pending" || item.status === "error"));
+    let completed = 0;
+    for (const item of queue) {
+      update(item.id, { status: "saving", error: "" });
+      try {
+        await executeDraft(item.draft);
+        update(item.id, { status: "success", selected: false });
+        completed += 1;
+      } catch (error) {
+        update(item.id, { status: "error", error: error instanceof Error ? error.message : "Aksi belum dapat dijalankan." });
+      }
     }
+    if (completed > 0) showToast("success", `${completed} aksi berhasil dibuat.`);
   }
 
-  return <form className="assistant-action-card" onSubmit={save}>
-    <header><div><span className="assistant-action-icon">{draft.type === "task" ? <CheckSquare2 /> : draft.type === "event" ? <CalendarDays /> : <WalletCards />}</span><div><small>Saran aksi</small><strong>{draft.type === "task" ? "Buat task" : draft.type === "event" ? "Buat agenda" : "Catat transaksi"}</strong></div></div><button type="button" className="icon-button" onClick={dismiss} aria-label="Batalkan saran"><X /></button></header>
-    <p>Periksa dan ubah detail jika perlu. Data baru dibuat setelah kamu menekan tombol konfirmasi.</p>
-    <div className="assistant-action-fields">
-      {draft.type === "task" && <><label>Judul<input value={draft.title} maxLength={200} required onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>Catatan<textarea value={draft.description} maxLength={2000} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label><label>Jatuh tempo<span className="action-date-input"><Clock3 /><input type="datetime-local" value={localDateTime(draft.dueAt)} required onChange={(event) => setDraft({ ...draft, dueAt: new Date(event.target.value).toISOString() })} /></span></label></>}
-      {draft.type === "event" && <><label>Judul<input value={draft.title} maxLength={200} required onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>Catatan<textarea value={draft.description} maxLength={2000} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label><label>Lokasi<input value={draft.location} maxLength={300} onChange={(event) => setDraft({ ...draft, location: event.target.value })} /></label><div className="assistant-action-row"><label>Mulai<input type="datetime-local" value={localDateTime(draft.eventAt)} required onChange={(event) => setDraft({ ...draft, eventAt: new Date(event.target.value).toISOString() })} /></label><label>Selesai (opsional)<input type="datetime-local" value={draft.eventEndAt ? localDateTime(draft.eventEndAt) : ""} min={localDateTime(draft.eventAt)} onChange={(event) => setDraft({ ...draft, eventEndAt: event.target.value ? new Date(event.target.value).toISOString() : null })} /></label></div><div className="assistant-reminder-editor"><div><span>Pengingat tambahan</span><button type="button" onClick={() => setDraft({ ...draft, reminders: [...draft.reminders, new Date(new Date(draft.eventAt).getTime() - 60 * 60_000).toISOString()].slice(0, 10) })} disabled={draft.reminders.length >= 10}>Tambah pengingat</button></div><p>Pengingat bawaan 10 menit sebelum agenda tetap dibuat otomatis.</p>{draft.reminders.length === 0 ? <small>Belum ada pengingat tambahan.</small> : draft.reminders.map((reminder, index) => <div className="assistant-reminder-row" key={`${reminder}-${index}`}><input type="datetime-local" value={localDateTime(reminder)} max={localDateTime(draft.eventAt)} aria-label={`Waktu pengingat tambahan ${index + 1}`} onChange={(event) => { if (!event.target.value) return; const reminders = [...draft.reminders]; reminders[index] = new Date(event.target.value).toISOString(); setDraft({ ...draft, reminders }); }} /><button type="button" className="icon-button" onClick={() => setDraft({ ...draft, reminders: draft.reminders.filter((_, itemIndex) => itemIndex !== index) })} aria-label={`Hapus pengingat tambahan ${index + 1}`}><Trash2 /></button></div>)}</div></>}
+  return <section className="assistant-batch" aria-label={`${items.length} saran aksi`}>
+    <header><div><small>Konfirmasi aksi</small><h3>{items.length} draft disiapkan</h3></div><button type="button" className="text-link" onClick={() => setItems((current) => current.map((item) => item.status === "success" ? item : { ...item, selected: true }))} disabled={busy}>Pilih semua</button></header>
+    <p>Pilih dan periksa setiap item. Hanya item terpilih yang akan dibuat.</p>
+    <div className="assistant-batch-list">{items.map((item, index) => <ActionDraftCard key={item.id} item={item} index={index} pockets={pockets} categories={categories} update={(change) => update(item.id, change)} remove={() => setItems((current) => current.filter((entry) => entry.id !== item.id))} />)}</div>
+    {(successes > 0 || failures > 0) && <div className="assistant-batch-result" role="status"><Check />{successes} berhasil{failures > 0 && <><CircleAlert />{failures} perlu diperbaiki</>}</div>}
+    <footer><button type="button" className="secondary-button" onClick={() => setItems([])} disabled={busy}>{successes > 0 ? "Tutup hasil" : "Batalkan semua"}</button><button type="button" className="primary-button" onClick={() => void confirmSelected()} disabled={busy || runnable.length === 0}>{busy && <Loader2 className="spin" />}{busy ? "Memproses..." : failures > 0 ? `Coba lagi ${runnable.length} item` : `Konfirmasi ${runnable.length} item`}</button></footer>
+  </section>;
+}
+
+function ActionDraftCard({ item, index, pockets, categories, update, remove }: { item: BatchItem; index: number; pockets: Pocket[]; categories: Category[]; update: (change: Partial<BatchItem>) => void; remove: () => void }) {
+  const draft = item.draft;
+  const locked = item.status === "saving" || item.status === "success";
+  const setDraft = (value: AssistantSuggestion) => update({ draft: value, status: "pending", error: "" });
+  return <article className={`assistant-action-card ${item.status}`}>
+    <header><label className="assistant-action-select"><input type="checkbox" checked={item.selected} disabled={locked} onChange={(event) => update({ selected: event.target.checked })} /><span /></label><div><span className="assistant-action-icon">{draft.type === "task" ? <CheckSquare2 /> : draft.type === "event" ? <CalendarDays /> : <WalletCards />}</span><div><small>Draft {index + 1}</small><strong>{draft.type === "task" ? "Buat task" : draft.type === "event" ? "Buat agenda" : "Catat transaksi"}</strong></div></div><button type="button" className="icon-button" onClick={remove} disabled={item.status === "saving"} aria-label={`Hapus draft ${index + 1}`}><X /></button></header>
+    <fieldset disabled={locked}><div className="assistant-action-fields">
+      {draft.type === "task" && <><label>Judul<input value={draft.title} maxLength={200} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>Catatan<textarea value={draft.description} maxLength={2000} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label><label>Jatuh tempo<span className="action-date-input"><Clock3 /><input type="datetime-local" value={localDateTime(draft.dueAt)} onChange={(event) => event.target.value && setDraft({ ...draft, dueAt: new Date(event.target.value).toISOString() })} /></span></label></>}
+      {draft.type === "event" && <><label>Judul<input value={draft.title} maxLength={200} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>Catatan<textarea value={draft.description} maxLength={2000} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label><label>Lokasi<input value={draft.location} maxLength={300} onChange={(event) => setDraft({ ...draft, location: event.target.value })} /></label><div className="assistant-action-row"><label>Mulai<input type="datetime-local" value={localDateTime(draft.eventAt)} onChange={(event) => event.target.value && setDraft({ ...draft, eventAt: new Date(event.target.value).toISOString() })} /></label><label>Selesai (opsional)<input type="datetime-local" value={draft.eventEndAt ? localDateTime(draft.eventEndAt) : ""} min={localDateTime(draft.eventAt)} onChange={(event) => setDraft({ ...draft, eventEndAt: event.target.value ? new Date(event.target.value).toISOString() : null })} /></label></div><div className="assistant-reminder-editor"><div><span>Pengingat tambahan</span><button type="button" onClick={() => setDraft({ ...draft, reminders: [...draft.reminders, new Date(new Date(draft.eventAt).getTime() - 60 * 60_000).toISOString()].slice(0, 10) })} disabled={draft.reminders.length >= 10}>Tambah pengingat</button></div><p>Pengingat bawaan 10 menit sebelum agenda tetap dibuat otomatis.</p>{draft.reminders.length === 0 ? <small>Belum ada pengingat tambahan.</small> : draft.reminders.map((reminder, reminderIndex) => <div className="assistant-reminder-row" key={`${reminder}-${reminderIndex}`}><input type="datetime-local" value={localDateTime(reminder)} max={localDateTime(draft.eventAt)} aria-label={`Waktu pengingat tambahan ${reminderIndex + 1}`} onChange={(event) => { if (!event.target.value) return; const reminders = [...draft.reminders]; reminders[reminderIndex] = new Date(event.target.value).toISOString(); setDraft({ ...draft, reminders }); }} /><button type="button" className="icon-button" onClick={() => setDraft({ ...draft, reminders: draft.reminders.filter((_, itemIndex) => itemIndex !== reminderIndex) })} aria-label={`Hapus pengingat tambahan ${reminderIndex + 1}`}><Trash2 /></button></div>)}</div></>}
       {draft.type === "transaction" && <TransactionDraftFields draft={draft} setDraft={setDraft} pockets={pockets} categories={categories} />}
-    </div>
-    {error && <p className="form-error" role="alert">{error}</p>}
-    <footer><button type="button" className="secondary-button" onClick={dismiss} disabled={saving}>Batalkan</button><button type="submit" className="primary-button" disabled={saving}>{saving && <Loader2 className="spin" />}{saving ? "Menyimpan..." : "Konfirmasi dan buat"}</button></footer>
-  </form>;
+    </div></fieldset>
+    {item.status === "saving" && <p className="assistant-item-status saving"><Loader2 className="spin" />Menyimpan...</p>}
+    {item.status === "success" && <p className="assistant-item-status success"><Check />Berhasil dibuat</p>}
+    {item.status === "error" && <p className="assistant-item-status error" role="alert"><CircleAlert />{item.error}</p>}
+  </article>;
 }
 
 function TransactionDraftFields({ draft, setDraft, pockets, categories }: { draft: Extract<AssistantSuggestion, { type: "transaction" }>; setDraft: (value: Extract<AssistantSuggestion, { type: "transaction" }>) => void; pockets: Pocket[]; categories: Category[] }) {

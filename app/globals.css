@@ -347,6 +347,34 @@ h3 { margin-bottom: 7px; }
 .assistant-reminder-row input { min-width: 0; }
 .assistant-reminder-row .icon-button { border: 1px solid var(--border); color: var(--negative); }
 .assistant-reminder-row .icon-button svg { width: 15px; height: 15px; }
+.assistant-batch { width: min(100%, 760px); align-self: flex-start; display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-raised); }
+.assistant-batch > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.assistant-batch > header small { color: var(--text-tertiary); font-size: 10px; }
+.assistant-batch > header h3 { margin: 3px 0 0; font-size: 17px; }
+.assistant-batch > header .text-link { border: 0; background: transparent; cursor: pointer; }
+.assistant-batch > p { margin: -5px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.assistant-batch-list { display: grid; gap: 10px; }
+.assistant-batch .assistant-action-card { width: 100%; }
+.assistant-action-card fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.assistant-action-card.success { border-color: color-mix(in srgb, var(--positive) 42%, var(--border)); }
+.assistant-action-card.error { border-color: color-mix(in srgb, var(--negative) 42%, var(--border)); }
+.assistant-action-select { position: relative; width: 44px; height: 44px; display: grid; place-items: center; flex: 0 0 auto; cursor: pointer; }
+.assistant-action-select input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.assistant-action-select span { width: 19px; height: 19px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); }
+.assistant-action-select input:checked + span { border-color: var(--accent); background: var(--accent); }
+.assistant-action-select input:checked + span::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--bg-base); border-bottom: 2px solid var(--bg-base); transform: translateY(-1px) rotate(-45deg); }
+.assistant-action-select input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+.assistant-action-select:has(input:disabled) { cursor: default; opacity: .55; }
+.assistant-item-status { min-height: 38px; display: flex; align-items: center; gap: 7px; margin: 0; padding: 8px 10px; border-radius: 9px; font-size: 11px; }
+.assistant-item-status svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.assistant-item-status.saving { color: var(--text-secondary); background: var(--bg-raised); }
+.assistant-item-status.success { color: var(--positive); background: color-mix(in srgb, var(--positive) 10%, transparent); }
+.assistant-item-status.error { color: var(--negative); background: color-mix(in srgb, var(--negative) 10%, transparent); }
+.assistant-batch-result { min-height: 38px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 11px; }
+.assistant-batch-result svg { width: 15px; height: 15px; color: var(--positive); }
+.assistant-batch-result svg:nth-of-type(2) { margin-left: 8px; color: var(--negative); }
+.assistant-batch > footer { display: flex; justify-content: flex-end; gap: 9px; padding-top: 2px; }
+.assistant-batch > footer button { min-height: 44px; }
 
 .today-workspace .topbar { margin-bottom: 28px; }
 .today-metrics { max-width: 1040px; display: grid; grid-template-columns: .7fr .8fr 1.5fr; gap: 12px; margin: 0 auto 18px; }
@@ -528,9 +556,11 @@ h3 { margin-bottom: 7px; }
   .assistant-reset { width: 44px; padding: 0; }
   .assistant-reset span { display: none; }
   .assistant-action-card { padding: 14px 12px; }
+  .assistant-batch { padding: 12px; }
   .assistant-action-row { grid-template-columns: minmax(0, 1fr); }
-  .assistant-action-card > footer { display: grid; grid-template-columns: 1fr; }
-  .assistant-action-card > footer .primary-button { grid-row: 1; }
+  .assistant-action-card > header { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 4px; }
+  .assistant-batch > footer { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .assistant-batch > footer .primary-button { grid-row: 1; }
   .assistant-reminder-editor > div:first-child { align-items: flex-start; flex-direction: column; gap: 2px; }
   .today-workspace .topbar { align-items: flex-start; }
   .today-workspace h1 { max-width: 270px; font-size: clamp(27px, 9vw, 36px); line-height: 1.05; }

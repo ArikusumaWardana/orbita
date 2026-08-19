@@ -48,4 +48,4 @@ Status: implementation complete. Multiple pockets, derived balances, transaction
 - Streaming chat states and per-user history
 - Manifest, service worker, offline cache behavior, and install checks
 
-Status: in progress. The authenticated assistant has aggregated account context, RLS-scoped history, streaming responses, topic guardrails, and a 30-request daily limit. Gemini function calls produce editable task, event, or transaction drafts; only an explicit confirmation invokes the existing validated Server Action. PWA installability and offline caching remain pending.
+Status: in progress. The authenticated assistant has aggregated account context, RLS-scoped history, streaming responses, topic guardrails, and a 30-request daily limit. Gemini function calls can produce up to ten editable task, event, or transaction drafts in one request. Users select which drafts to run, receive per-item success or error states, and retry only failed items; explicit confirmation invokes the existing validated Server Actions. PWA installability and offline caching remain pending.
