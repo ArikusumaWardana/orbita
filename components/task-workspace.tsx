@@ -162,9 +162,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
           <span>Orbita</span>
         </div>
         <nav className="side-nav">
-          <button type="button" className="nav-item" onClick={() => setView("active")}>
-            <Home aria-hidden="true" /> <span>Hari ini</span>
-          </button>
+          <Link className="nav-item" href="/today"><Home aria-hidden="true" /> <span>Hari ini</span></Link>
           <button type="button" className="nav-item active" aria-current="page" onClick={() => setView("active")}>
             <CheckSquare2 aria-hidden="true" /> <span>Task</span>
           </button>
@@ -240,7 +238,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
       </main>
 
       <nav className="bottom-nav" aria-label="Navigasi mobile">
-        <button type="button" onClick={() => setView("active")}><Home aria-hidden="true" /><span>Hari ini</span></button>
+        <Link href="/today"><Home aria-hidden="true" /><span>Hari ini</span></Link>
         <button type="button" className="active" aria-current="page" onClick={() => setView("active")}><CheckSquare2 aria-hidden="true" /><span>Task</span></button>
         <Link href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
         <Link href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>

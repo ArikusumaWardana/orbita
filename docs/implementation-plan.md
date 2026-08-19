@@ -13,6 +13,8 @@ The PRD is being delivered as verified vertical slices so each feature has worki
 
 Status: implemented, then upgraded to server-backed task data in Slice 2.
 
+The `/today` route now provides a timezone-aware daily overview with bounded task, event, and transaction queries plus direct navigation to each primary workflow.
+
 ## Slice 2: Neon and authentication
 
 - Neon Auth with OTP verification and cookie-backed protected routes

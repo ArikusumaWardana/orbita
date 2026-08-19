@@ -153,9 +153,9 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navigasi utama">
-        <Link className="wordmark wordmark-link" href="/" aria-label="Orbita"><span className="orbit-mark" aria-hidden="true"><span /></span><span>Orbita</span></Link>
+        <Link className="wordmark wordmark-link" href="/today" aria-label="Orbita"><span className="orbit-mark" aria-hidden="true"><span /></span><span>Orbita</span></Link>
         <nav className="side-nav">
-          <Link className="nav-item" href="/"><Home aria-hidden="true" /><span>Hari ini</span></Link>
+          <Link className="nav-item" href="/today"><Home aria-hidden="true" /><span>Hari ini</span></Link>
           <Link className="nav-item" href="/"><CheckSquare2 aria-hidden="true" /><span>Task</span></Link>
           <Link className="nav-item active" href="/events" aria-current="page"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
           <Link className="nav-item" href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
@@ -210,7 +210,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
       </main>
 
       <nav className="bottom-nav" aria-label="Navigasi mobile">
-        <Link href="/"><Home aria-hidden="true" /><span>Hari ini</span></Link>
+        <Link href="/today"><Home aria-hidden="true" /><span>Hari ini</span></Link>
         <Link href="/"><CheckSquare2 aria-hidden="true" /><span>Task</span></Link>
         <Link href="/events" className="active" aria-current="page"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
         <Link href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
