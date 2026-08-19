@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  Bot,
   Check,
   CheckSquare2,
   CircleAlert,
@@ -169,6 +170,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
           </button>
           <Link className="nav-item" href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
           <Link className="nav-item" href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
+          <Link className="nav-item" href="/assistant"><Bot aria-hidden="true" /><span>Asisten</span></Link>
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in-user">Masuk sebagai <strong>{userName}</strong></p>
@@ -242,6 +244,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
         <button type="button" className="active" aria-current="page" onClick={() => setView("active")}><CheckSquare2 aria-hidden="true" /><span>Task</span></button>
         <Link href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
         <Link href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
+        <Link href="/assistant"><Bot aria-hidden="true" /><span>Asisten</span></Link>
       </nav>
 
       <AnimatePresence>{dialogOpen && <TaskDialog close={() => setDialogOpen(false)} submit={createTask} />}</AnimatePresence>

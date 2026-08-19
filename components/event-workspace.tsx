@@ -2,6 +2,7 @@
 
 import {
   Bell,
+  Bot,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -158,6 +159,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
           <Link className="nav-item" href="/"><CheckSquare2 aria-hidden="true" /><span>Task</span></Link>
           <Link className="nav-item active" href="/events" aria-current="page"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
           <Link className="nav-item" href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
+          <Link className="nav-item" href="/assistant"><Bot aria-hidden="true" /><span>Asisten</span></Link>
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in-user">Masuk sebagai <strong>{userName}</strong></p>
@@ -212,6 +214,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
         <Link href="/"><CheckSquare2 aria-hidden="true" /><span>Task</span></Link>
         <Link href="/events" className="active" aria-current="page"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
         <Link href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
+        <Link href="/assistant"><Bot aria-hidden="true" /><span>Asisten</span></Link>
       </nav>
 
       <AnimatePresence>{editing !== undefined && <EventDialog event={editing} close={() => setEditing(undefined)} submit={saveEvent} />}</AnimatePresence>

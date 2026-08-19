@@ -46,4 +46,4 @@ Status: implementation complete. Multiple pockets, derived balances, transaction
 - Streaming chat states and per-user history
 - Manifest, service worker, offline cache behavior, and install checks
 
-Status: pending Slices 2 through 4.
+Status: in progress. The authenticated assistant has aggregated account context, RLS-scoped history, streaming responses, topic guardrails, and a 30-request daily limit. Gemini function calls produce editable task, event, or transaction drafts; only an explicit confirmation invokes the existing validated Server Action. PWA installability and offline caching remain pending.

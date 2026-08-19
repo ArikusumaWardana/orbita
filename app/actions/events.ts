@@ -87,6 +87,23 @@ export async function createEvent(input: EventInput): Promise<EventItem> {
   return eventFromRow(data as EventRow, [reminderResult.data as ReminderRow]);
 }
 
+export async function createEventWithAdditionalReminders(input: EventInput, reminderValues: string[]): Promise<EventItem> {
+  if (reminderValues.length > 10) throw new Error("Pengingat tambahan maksimal 10.");
+  const eventAt = new Date(input.eventAt);
+  const reminders = [...new Set(reminderValues.map(validateReminder))];
+  if (reminders.some((value) => new Date(value) >= eventAt)) throw new Error("Semua pengingat tambahan harus sebelum agenda dimulai.");
+
+  const created = await createEvent(input);
+  try {
+    let result = created;
+    for (const reminder of reminders) result = await addEventReminder(created.id, reminder);
+    return result;
+  } catch (error) {
+    try { await deleteEvent(created.id); } catch (rollbackError) { console.error("Rollback agenda dengan pengingat gagal", rollbackError); }
+    throw error;
+  }
+}
+
 export async function updateEvent(id: string, input: EventInput): Promise<EventItem> {
   const event = validateEvent(input);
   const { db, user } = await getAuthenticatedDatabase();
