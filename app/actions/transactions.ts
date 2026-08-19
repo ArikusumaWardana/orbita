@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedDatabase } from "@/lib/db/server";
-import { Pocket, PocketRow, LedgerTransaction, TransactionRow, TransactionType, pocketFromRow, transactionFromRow } from "@/lib/finance";
+import { Category, CategoryRow, Pocket, PocketRow, LedgerTransaction, TransactionRow, TransactionType, pocketFromRow, transactionFromRow } from "@/lib/finance";
 
 function cleanAmount(value: number) {
   if (!Number.isFinite(value) || value <= 0 || value > 999_999_999_999.99) throw new Error("Nominal harus lebih dari Rp0.");
@@ -22,6 +22,20 @@ export async function createPocket(input: { name: string; startingBalance: numbe
   }
   revalidatePath("/finance");
   return pocketFromRow(data as PocketRow);
+}
+
+export async function createCategory(input: { name: string; type: TransactionType }): Promise<Category> {
+  const { db, user } = await getAuthenticatedDatabase();
+  const name = input.name.trim();
+  if (!name || name.length > 100) throw new Error("Nama kategori harus berisi 1 sampai 100 karakter.");
+  if (input.type !== "income" && input.type !== "expense") throw new Error("Jenis kategori tidak valid.");
+  const { data, error } = await db.from("categories").insert({ user_id: user.id, name, type: input.type, is_default: false }).select("id,name,type").single();
+  if (error || !data) {
+    console.error("Create category gagal", error);
+    throw new Error(error?.code === "23505" ? "Nama kategori sudah digunakan untuk jenis ini." : "Kategori belum dapat dibuat. Coba lagi.");
+  }
+  revalidatePath("/finance");
+  return data as CategoryRow;
 }
 
 export async function createTransaction(input: { pocketId: string; categoryId: string; type: TransactionType; amount: number; description: string; transactionDate: string }): Promise<LedgerTransaction> {

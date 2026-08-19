@@ -167,8 +167,26 @@ h3 { margin-bottom: 7px; }
 .finance-summary article { min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-surface); }
 .finance-summary span, .finance-summary small { display: block; color: var(--text-tertiary); font-size: 11px; }
 .finance-summary strong { display: block; margin: 12px 0 7px; overflow-wrap: anywhere; font-size: clamp(21px, 3vw, 28px); letter-spacing: -.035em; }
-.finance-panel .panel-heading { align-items: flex-end; }
-.finance-filters { display: flex; gap: 8px; }
+.weekly-trend { max-width: 1040px; margin: 18px auto 4px; padding: 22px 24px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-base); }
+.weekly-trend > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.trend-totals { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 18px; color: var(--text-tertiary); font-size: 10px; }
+.trend-totals span { display: grid; grid-template-columns: 7px auto; align-items: center; gap: 4px 6px; }
+.trend-totals i { width: 7px; height: 7px; border-radius: 2px; }
+.trend-totals i.income { background: var(--positive); }
+.trend-totals i.expense { background: var(--negative); }
+.trend-totals strong { grid-column: 2; color: var(--text-primary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.trend-chart { height: 190px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: clamp(6px, 2vw, 18px); margin-top: 24px; padding-top: 8px; border-bottom: 1px solid var(--border); }
+.trend-day { min-width: 0; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr) 28px; gap: 6px; color: var(--text-tertiary); font-size: 9px; text-align: center; }
+.trend-bars { min-height: 0; display: flex; align-items: flex-end; justify-content: center; gap: 4px; }
+.trend-bars > span { width: min(18px, 32%); min-height: 0; border-radius: 4px 4px 1px 1px; transition: height .25s ease; }
+.trend-bars > span.income { background: var(--positive); }
+.trend-bars > span.expense { background: var(--negative); }
+.trend-day > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trend-empty { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-tertiary); font-size: 12px; }
+.trend-empty svg { width: 21px; height: 21px; }
+.trend-empty p { margin: 0; }
+.finance-panel .panel-heading { align-items: center; }
+.finance-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 18px 0 4px; }
 .select-field { min-width: 0; display: grid; gap: 6px; color: var(--text-tertiary); font-size: 10px; }
 .select-label { font-weight: 600; letter-spacing: .02em; }
 .select-control { position: relative; min-width: 0; display: block; color: var(--text-tertiary); }
@@ -192,6 +210,12 @@ h3 { margin-bottom: 7px; }
 @keyframes select-menu-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 .finance-filters .select-field { min-width: 148px; }
 .finance-filters .select-control { max-width: 180px; }
+.date-filter-field { min-width: 145px; display: grid; gap: 6px; color: var(--text-tertiary); font-size: 10px; font-weight: 600; letter-spacing: .02em; }
+.date-filter-field input { width: 100%; min-height: 44px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-base); color: var(--text-primary); font-size: 11px; color-scheme: inherit; }
+.date-filter-field input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .78; }
+[data-theme="dark"] .date-filter-field input::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.35); opacity: .92; }
+.clear-finance-filters { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 650; }
+.category-dialog { width: min(440px, 100%); }
 .transaction-groups > section { padding-top: 20px; }
 .transaction-groups > section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 10px; color: var(--text-secondary); }
 .transaction-groups > section > header strong { font-size: 13px; text-transform: capitalize; }
@@ -270,6 +294,7 @@ h3 { margin-bottom: 7px; }
   .bottom-nav button:hover, .bottom-nav a:hover { color: var(--accent); background: var(--accent-soft); }
   .select-trigger:not(:disabled):hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--bg-surface); }
   .select-option:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .clear-finance-filters:hover { color: color-mix(in srgb, var(--accent) 78%, white); }
 }
 
 .toast-viewport { position: fixed; z-index: 100; top: 20px; right: 20px; width: min(390px, calc(100vw - 32px)); pointer-events: none; }
@@ -355,11 +380,20 @@ h3 { margin-bottom: 7px; }
   .date-filter { align-items: flex-start; flex-direction: column; gap: 0; padding: 10px 12px; }
   .finance-pocket-button { display: none; }
   .finance-summary { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(210px, 82vw); overflow-x: auto; margin-inline: -16px; padding: 0 16px 4px; scrollbar-width: thin; }
-  .finance-panel .panel-heading { align-items: stretch; }
+  .weekly-trend { padding: 18px 14px 14px; }
+  .weekly-trend > header { flex-direction: column; gap: 14px; }
+  .trend-totals { width: 100%; justify-content: flex-start; }
+  .trend-chart { height: 170px; gap: 5px; margin-top: 18px; }
+  .trend-bars { gap: 2px; }
+  .trend-bars > span { width: 38%; }
+  .trend-day { font-size: 8px; }
+  .finance-panel .panel-heading { align-items: center; flex-direction: row; }
   .finance-filters { width: 100%; }
   .finance-filters .select-field { min-width: 0; flex: 1; }
   .finance-filters .select-control { max-width: none; }
   .finance-filters .select-menu { width: min(260px, calc(100vw - 32px)); }
+  .date-filter-field { min-width: calc(50% - 5px); flex: 1; }
+  .clear-finance-filters { width: 100%; border: 1px solid var(--border); border-radius: 10px; }
   .transaction-groups > section > header { align-items: flex-start; flex-direction: column; gap: 4px; }
   .transaction-row { grid-template-columns: 40px minmax(0, 1fr) 44px; gap: 8px; }
   .transaction-row > strong { grid-column: 2; grid-row: 2; justify-self: start; margin-top: -13px; }

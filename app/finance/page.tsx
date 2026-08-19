@@ -16,5 +16,5 @@ export default async function FinancePage() {
     db.from("transactions").select("id,pocket_id,category_id,type,amount,description,transaction_date,created_at").eq("user_id", user.id).order("transaction_date", { ascending: false }).order("created_at", { ascending: false }),
   ]);
   if (pockets.error || categories.error || transactions.error) throw new Error("Data keuangan belum dapat dimuat. Coba muat ulang halaman.");
-  return <FinanceWorkspace initialPockets={(pockets.data as PocketRow[]).map(pocketFromRow)} categories={categories.data as CategoryRow[]} initialTransactions={(transactions.data as TransactionRow[]).map(transactionFromRow)} userName={session?.user?.name ?? "Pengguna"} />;
+  return <FinanceWorkspace initialPockets={(pockets.data as PocketRow[]).map(pocketFromRow)} initialCategories={categories.data as CategoryRow[]} initialTransactions={(transactions.data as TransactionRow[]).map(transactionFromRow)} userName={session?.user?.name ?? "Pengguna"} />;
 }
