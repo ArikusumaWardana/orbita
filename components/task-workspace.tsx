@@ -168,7 +168,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
             <CheckSquare2 aria-hidden="true" /> <span>Task</span>
           </button>
           <Link className="nav-item" href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
-          <span className="nav-item unavailable" aria-disabled="true"><WalletCards aria-hidden="true" /><span>Keuangan</span><small>Segera</small></span>
+          <Link className="nav-item" href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in-user">Masuk sebagai <strong>{userName}</strong></p>
@@ -241,7 +241,7 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
         <button type="button" onClick={() => setView("active")}><Home aria-hidden="true" /><span>Hari ini</span></button>
         <button type="button" className="active" aria-current="page" onClick={() => setView("active")}><CheckSquare2 aria-hidden="true" /><span>Task</span></button>
         <Link href="/events"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
-        <span aria-disabled="true"><WalletCards aria-hidden="true" /><span>Keuangan</span></span>
+        <Link href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
       </nav>
 
       <AnimatePresence>{dialogOpen && <TaskDialog close={() => setDialogOpen(false)} submit={createTask} />}</AnimatePresence>

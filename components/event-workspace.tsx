@@ -157,7 +157,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
           <Link className="nav-item" href="/"><Home aria-hidden="true" /><span>Hari ini</span></Link>
           <Link className="nav-item" href="/"><CheckSquare2 aria-hidden="true" /><span>Task</span></Link>
           <Link className="nav-item active" href="/events" aria-current="page"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
-          <span className="nav-item unavailable" aria-disabled="true"><WalletCards aria-hidden="true" /><span>Keuangan</span><small>Segera</small></span>
+          <Link className="nav-item" href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in-user">Masuk sebagai <strong>{userName}</strong></p>
@@ -211,7 +211,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
         <Link href="/"><Home aria-hidden="true" /><span>Hari ini</span></Link>
         <Link href="/"><CheckSquare2 aria-hidden="true" /><span>Task</span></Link>
         <Link href="/events" className="active" aria-current="page"><CalendarDays aria-hidden="true" /><span>Agenda</span></Link>
-        <span aria-disabled="true"><WalletCards aria-hidden="true" /><span>Keuangan</span></span>
+        <Link href="/finance"><WalletCards aria-hidden="true" /><span>Keuangan</span></Link>
       </nav>
 
       <AnimatePresence>{editing !== undefined && <EventDialog event={editing} close={() => setEditing(undefined)} submit={saveEvent} />}</AnimatePresence>

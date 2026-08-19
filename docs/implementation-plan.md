@@ -37,7 +37,7 @@ Status: implementation complete. Signed-in browser smoke testing and production 
 - Derived balances, filters, grouped daily history, and sourced charts
 - Finance-specific empty, loading, and error states
 
-Status: pending Slice 2.
+Status: core ledger implemented. Multiple pockets, derived balances, transaction creation/deletion, daily grouping, pocket/type filters, and responsive states are available. Category management, date/category filters, and sourced trend charts remain.
 
 ## Slice 5: contextual assistant and PWA
 
