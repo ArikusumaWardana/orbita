@@ -78,14 +78,39 @@ function eventOccursOnDate(event: EventItem, key: string) {
   return eventStart <= dayEnd && eventEnd >= dayStart;
 }
 
+function eventOccursInRange(event: EventItem, startDate?: string, endDate?: string) {
+  if (!startDate && !endDate) return true;
+  const eventStart = new Date(event.eventAt).getTime();
+  const eventEnd = new Date(event.eventEndAt ?? event.eventAt).getTime();
+
+  if (startDate) {
+    const rangeStart = new Date(`${startDate}T00:00:00`).getTime();
+    if (eventEnd < rangeStart) return false;
+  }
+
+  if (endDate) {
+    const rangeEnd = new Date(`${endDate}T23:59:59.999`).getTime();
+    if (eventStart > rangeEnd) return false;
+  }
+
+  return true;
+}
+
 export function EventWorkspace({ initialEvents, initialTaskDates, userName, referenceTime }: { initialEvents: EventItem[]; initialTaskDates: string[]; userName: string; referenceTime: string }) {
   const [events, setEvents] = useState(initialEvents);
   const [view, setView] = useState<"upcoming" | "past">("upcoming");
+  const [page, setPage] = useState(1);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [editing, setEditing] = useState<EventItem | null | undefined>(undefined);
   const [reminderTarget, setReminderTarget] = useState<{ event: EventItem; reminder?: EventReminder } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Past event date range filters
+  const [pastStartDate, setPastStartDate] = useState("");
+  const [pastEndDate, setPastEndDate] = useState("");
+
+  const ITEMS_PER_PAGE = 5;
 
   useEffect(() => {
     const nextTheme = window.localStorage.getItem("orbita.theme") === "light" ? "light" : "dark";
@@ -93,13 +118,38 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
     queueMicrotask(() => setTheme(nextTheme));
   }, []);
 
+  function changeView(nextView: "upcoming" | "past") {
+    setView(nextView);
+    setPage(1);
+  }
+
+  function selectCalendarDate(date: string | null) {
+    setSelectedDate(date);
+    setPage(1);
+  }
+
+  function resetPastFilters() {
+    setPastStartDate("");
+    setPastEndDate("");
+    setPage(1);
+  }
+
   const visibleEvents = useMemo(() => {
     const now = new Date(referenceTime).getTime();
     return events
       .filter((event) => view === "upcoming" ? new Date(event.eventEndAt ?? event.eventAt).getTime() >= now : new Date(event.eventEndAt ?? event.eventAt).getTime() < now)
       .filter((event) => !selectedDate || eventOccursOnDate(event, selectedDate))
+      .filter((event) => view !== "past" || eventOccursInRange(event, pastStartDate, pastEndDate))
       .sort((a, b) => view === "upcoming" ? a.eventAt.localeCompare(b.eventAt) : b.eventAt.localeCompare(a.eventAt));
-  }, [events, referenceTime, selectedDate, view]);
+  }, [events, referenceTime, selectedDate, view, pastStartDate, pastEndDate]);
+
+  const totalEvents = visibleEvents.length;
+  const totalPages = Math.ceil(totalEvents / ITEMS_PER_PAGE) || 1;
+
+  const paginatedEvents = useMemo(() => {
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    return visibleEvents.slice(start, start + ITEMS_PER_PAGE);
+  }, [visibleEvents, page]);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -114,7 +164,7 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
       ? current.map((event) => event.id === saved.id ? saved : event)
       : [...current, saved]);
     setEditing(undefined);
-    setView(new Date(saved.eventAt).getTime() < Date.now() ? "past" : "upcoming");
+    changeView(new Date(saved.eventAt).getTime() < Date.now() ? "past" : "upcoming");
     showToast("success", editing ? "Agenda berhasil diperbarui." : "Agenda dan pengingat 10 menit berhasil dibuat.");
   }
 
@@ -151,6 +201,8 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
     }
   }
 
+  const isPastFilterActive = Boolean(pastStartDate || pastEndDate);
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navigasi utama">
@@ -183,8 +235,8 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
           <div className="panel-heading">
             <div><p className="section-kicker">Jadwal pribadi</p><h2 id="event-list-heading">{view === "upcoming" ? "Agenda mendatang" : "Agenda lampau"}</h2></div>
             <div className="tabs" role="tablist" aria-label="Tampilan agenda">
-              <button type="button" role="tab" aria-selected={view === "upcoming"} onClick={() => setView("upcoming")}>Mendatang</button>
-              <button type="button" role="tab" aria-selected={view === "past"} onClick={() => setView("past")}>Lampau</button>
+              <button type="button" role="tab" aria-selected={view === "upcoming"} onClick={() => changeView("upcoming")}>Mendatang</button>
+              <button type="button" role="tab" aria-selected={view === "past"} onClick={() => changeView("past")}>Lampau</button>
             </div>
           </div>
 
@@ -193,19 +245,85 @@ export function EventWorkspace({ initialEvents, initialTaskDates, userName, refe
             taskDates={initialTaskDates}
             referenceTime={referenceTime}
             selectedDate={selectedDate}
-            selectDate={setSelectedDate}
+            selectDate={selectCalendarDate}
           />
 
-          {selectedDate && <div className="date-filter"><span>Menampilkan agenda pada {new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${selectedDate}T12:00:00`))}</span><button type="button" onClick={() => setSelectedDate(null)}>Tampilkan semua</button></div>}
+          {view === "past" && (
+            <div className="history-filters">
+              <div className="history-date-filter">
+                <label htmlFor="past-start-date">Dari:</label>
+                <input
+                  id="past-start-date"
+                  type="date"
+                  value={pastStartDate}
+                  onChange={(e) => {
+                    setPastStartDate(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
 
-          {visibleEvents.length === 0 ? (
-            <div className="state-card empty-state"><span className="empty-orbit" aria-hidden="true"><CalendarDays /></span><h3>{selectedDate ? "Tidak ada agenda pada tanggal ini" : view === "upcoming" ? "Belum ada agenda mendatang" : "Belum ada agenda lampau"}</h3><p>{selectedDate ? "Pilih tanggal lain atau tampilkan kembali semua agenda." : view === "upcoming" ? "Tambahkan jadwal agar Orbita dapat mengingatkanmu tepat waktu." : "Agenda yang sudah lewat akan muncul di sini."}</p>{!selectedDate && view === "upcoming" && <button type="button" className="secondary-button" onClick={() => setEditing(null)}><Plus /> Tambah agenda pertama</button>}</div>
-          ) : (
-            <div className="event-list">
-              <AnimatePresence initial={false}>
-                {visibleEvents.map((event) => <EventCard key={event.id} event={event} past={view === "past"} edit={() => setEditing(event)} remove={() => setDeleteTarget(event)} addReminder={() => setReminderTarget({ event })} editReminder={(reminder) => setReminderTarget({ event, reminder })} removeReminder={(reminder) => removeReminder(event, reminder)} />)}
-              </AnimatePresence>
+              <div className="history-date-filter">
+                <label htmlFor="past-end-date">Sampai:</label>
+                <input
+                  id="past-end-date"
+                  type="date"
+                  value={pastEndDate}
+                  onChange={(e) => {
+                    setPastEndDate(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+
+              {isPastFilterActive && (
+                <button type="button" className="history-reset-btn" onClick={resetPastFilters}>
+                  Reset tanggal
+                </button>
+              )}
             </div>
+          )}
+
+          {selectedDate && <div className="date-filter"><span>Menampilkan agenda pada {new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${selectedDate}T12:00:00`))}</span><button type="button" onClick={() => selectCalendarDate(null)}>Tampilkan semua</button></div>}
+
+          {totalEvents === 0 ? (
+            <div className="state-card empty-state"><span className="empty-orbit" aria-hidden="true"><CalendarDays /></span><h3>{selectedDate || isPastFilterActive ? "Tidak ada agenda pada tanggal ini" : view === "upcoming" ? "Belum ada agenda mendatang" : "Belum ada agenda lampau"}</h3><p>{selectedDate || isPastFilterActive ? "Pilih rentang tanggal lain atau tampilkan kembali semua agenda." : view === "upcoming" ? "Tambahkan jadwal agar Orbita dapat mengingatkanmu tepat waktu." : "Agenda yang sudah lewat akan muncul di sini."}</p>{!selectedDate && !isPastFilterActive && view === "upcoming" && <button type="button" className="secondary-button" onClick={() => setEditing(null)}><Plus /> Tambah agenda pertama</button>}</div>
+          ) : (
+            <>
+              <div className="event-list">
+                <AnimatePresence initial={false}>
+                  {paginatedEvents.map((event) => <EventCard key={event.id} event={event} past={view === "past"} edit={() => setEditing(event)} remove={() => setDeleteTarget(event)} addReminder={() => setReminderTarget({ event })} editReminder={(reminder) => setReminderTarget({ event, reminder })} removeReminder={(reminder) => removeReminder(event, reminder)} />)}
+                </AnimatePresence>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="event-pagination">
+                  <span>
+                    Halaman {page} dari {totalPages} ({totalEvents} agenda {view === "upcoming" ? "mendatang" : "lampau"})
+                  </span>
+                  <div className="event-pagination-controls">
+                    <button
+                      type="button"
+                      className="event-pagination-button"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      aria-label="Halaman sebelumnya"
+                    >
+                      <ChevronLeft aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="event-pagination-button"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      aria-label="Halaman selanjutnya"
+                    >
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </section>
       </main>
