@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Bot, CalendarDays, CheckSquare2, Clock3, Home, MapPin, Moon, Plus, Sun, WalletCards } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Bot, CalendarDays, CheckSquare2, Clock3, ExternalLink, Home, MapPin, Moon, Plus, Sun, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { NotificationCenter } from "@/components/notification-center";
 
 type TodayTask = { id: string; title: string; description: string | null; due_at: string };
-type TodayEvent = { id: string; title: string; description: string | null; location: string | null; event_at: string; event_end_at: string | null };
+type TodayEvent = { id: string; title: string; description: string | null; location: string | null; support_link: string | null; event_at: string; event_end_at: string | null };
 type TodayTransaction = { id: string; type: "income" | "expense"; amount: number; description: string | null; transaction_date: string };
 
 const money = (value: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
@@ -32,7 +32,7 @@ export function TodayWorkspace({ userName, timezone, referenceTime, tasks, event
 
       <div className="today-grid">
         <section className="today-card today-focus"><header><div><p className="section-kicker">Fokus utama</p><h2>Task hari ini</h2></div><Link href="/" className="text-link">Lihat semua</Link></header>{tasks.length === 0 ? <TodayEmpty icon={<CheckSquare2 />} title="Tidak ada task hari ini" copy="Gunakan waktu luang ini atau siapkan task untuk hari berikutnya." href="/" action="Buka task" /> : <ul>{tasks.map((task) => <li key={task.id}><span className="today-time"><Clock3 />{formatTime(task.due_at)}</span><div><strong>{task.title}</strong>{task.description && <p>{task.description}</p>}</div></li>)}</ul>}</section>
-        <section className="today-card today-agenda"><header><div><p className="section-kicker">Waktu terjadwal</p><h2>Agenda hari ini</h2></div><Link href="/events" className="text-link">Lihat semua</Link></header>{events.length === 0 ? <TodayEmpty icon={<CalendarDays />} title="Agenda masih kosong" copy="Belum ada kegiatan terjadwal untuk hari ini." href="/events" action="Tambah agenda" /> : <ul>{events.map((item) => <li key={item.id}><span className="today-time"><Clock3 />{formatTime(item.event_at)}{item.event_end_at ? `–${formatTime(item.event_end_at)}` : ""}</span><div><strong>{item.title}</strong>{item.location && <p><MapPin />{item.location}</p>}</div></li>)}</ul>}</section>
+        <section className="today-card today-agenda"><header><div><p className="section-kicker">Waktu terjadwal</p><h2>Agenda hari ini</h2></div><Link href="/events" className="text-link">Lihat semua</Link></header>{events.length === 0 ? <TodayEmpty icon={<CalendarDays />} title="Agenda masih kosong" copy="Belum ada kegiatan terjadwal untuk hari ini." href="/events" action="Tambah agenda" /> : <ul>{events.map((item) => <li key={item.id}><span className="today-time"><Clock3 />{formatTime(item.event_at)}{item.event_end_at ? `–${formatTime(item.event_end_at)}` : ""}</span><div><strong>{item.title}</strong>{item.location && <p><MapPin />{item.location}</p>}{item.support_link && <a href={item.support_link} target="_blank" rel="noopener noreferrer"><ExternalLink />Buka link</a>}</div></li>)}</ul>}</section>
         <section className="today-card today-cash"><header><div><p className="section-kicker">Catatan harian</p><h2>Keuangan</h2></div><Link href="/finance" className="text-link">Buka ledger</Link></header><div className="today-cash-lines"><span><i className="income"><ArrowDownLeft /></i><small>Pemasukan</small><strong>{money(income)}</strong></span><span><i className="expense"><ArrowUpRight /></i><small>Pengeluaran</small><strong>{money(expense)}</strong></span></div></section>
         <section className="today-card today-shortcuts"><header><div><p className="section-kicker">Akses cepat</p><h2>Lanjutkan aktivitas</h2></div></header><div><Link href="/"><Plus /><span><strong>Buka task</strong><small>Atur pekerjaan berikutnya</small></span></Link><Link href="/events"><CalendarDays /><span><strong>Buka agenda</strong><small>Periksa jadwal kegiatan</small></span></Link><Link href="/finance"><WalletCards /><span><strong>Buka keuangan</strong><small>Perbarui arus kas</small></span></Link><Link href="/assistant"><Bot /><span><strong>Tanya asisten</strong><small>Periksa data Orbita</small></span></Link></div></section>
       </div>

@@ -8,6 +8,7 @@ type EventInput = {
   title: string;
   description: string;
   location: string;
+  supportLink: string;
   eventAt: string;
   eventEndAt: string | null;
 };
@@ -16,17 +17,27 @@ function validateEvent(input: EventInput) {
   const title = input.title.trim();
   const description = input.description.trim();
   const location = input.location.trim();
+  const supportLink = input.supportLink.trim();
   const eventAt = new Date(input.eventAt);
   const eventEndAt = input.eventEndAt ? new Date(input.eventEndAt) : null;
 
   if (!title || title.length > 200) throw new Error("Judul agenda harus berisi 1 sampai 200 karakter.");
   if (description.length > 2000) throw new Error("Catatan agenda maksimal 2.000 karakter.");
   if (location.length > 300) throw new Error("Lokasi maksimal 300 karakter.");
+  if (supportLink.length > 2048) throw new Error("Link pendukung maksimal 2.048 karakter.");
+  if (supportLink) {
+    try {
+      const url = new URL(supportLink);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error();
+    } catch {
+      throw new Error("Link pendukung harus berupa URL http atau https yang valid.");
+    }
+  }
   if (Number.isNaN(eventAt.getTime())) throw new Error("Waktu agenda tidak valid.");
   if (eventEndAt && Number.isNaN(eventEndAt.getTime())) throw new Error("Waktu selesai agenda tidak valid.");
   if (eventEndAt && eventEndAt <= eventAt) throw new Error("Waktu selesai harus sesudah waktu mulai.");
 
-  return { title, description, location, eventAt: eventAt.toISOString(), eventEndAt: eventEndAt?.toISOString() ?? null };
+  return { title, description, location, supportLink, eventAt: eventAt.toISOString(), eventEndAt: eventEndAt?.toISOString() ?? null };
 }
 
 function validateReminder(value: string) {
@@ -35,10 +46,21 @@ function validateReminder(value: string) {
   return remindAt.toISOString();
 }
 
+function eventSchemaMessage(error: { code?: string; message?: string } | null) {
+  if (error?.code !== "PGRST204") return null;
+  if (error.message?.includes("support_link")) {
+    return "Skema link pendukung belum siap. Coba lagi beberapa saat lagi.";
+  }
+  if (error.message?.includes("event_end_at")) {
+    return "Skema rentang waktu belum siap. Coba lagi beberapa saat lagi.";
+  }
+  return "Skema agenda belum siap. Coba lagi beberapa saat lagi.";
+}
+
 async function loadEvent(id: string): Promise<EventItem> {
   const { db, user } = await getAuthenticatedDatabase();
   const [eventResult, reminderResult] = await Promise.all([
-    db.from("events").select("id,title,description,location,event_at,event_end_at")
+    db.from("events").select("id,title,description,location,support_link,event_at,event_end_at")
       .eq("id", id).eq("user_id", user.id).single(),
     db.from("event_reminders").select("id,event_id,remind_at,is_default")
       .eq("event_id", id).eq("user_id", user.id).order("remind_at"),
@@ -55,9 +77,10 @@ export async function createEvent(input: EventInput): Promise<EventItem> {
     title: event.title,
     description: event.description || null,
     location: event.location || null,
+    support_link: event.supportLink || null,
     event_at: event.eventAt,
     event_end_at: event.eventEndAt,
-  }).select("id,title,description,location,event_at,event_end_at").single();
+  }).select("id,title,description,location,support_link,event_at,event_end_at").single();
   if (error || !data) {
     console.error("Create agenda gagal", error ? {
       code: error.code,
@@ -65,9 +88,7 @@ export async function createEvent(input: EventInput): Promise<EventItem> {
       details: error.details,
       hint: error.hint,
     } : { message: "Data API tidak mengembalikan agenda." });
-    throw new Error(error?.code === "PGRST204"
-      ? "Skema rentang waktu sedang diperbarui. Muat ulang halaman lalu coba lagi."
-      : "Agenda belum dapat disimpan. Coba lagi.");
+    throw new Error(eventSchemaMessage(error) ?? "Agenda belum dapat disimpan. Coba lagi.");
   }
 
   const defaultReminder = new Date(new Date(event.eventAt).getTime() - 10 * 60_000).toISOString();
@@ -111,12 +132,21 @@ export async function updateEvent(id: string, input: EventInput): Promise<EventI
     title: event.title,
     description: event.description || null,
     location: event.location || null,
+    support_link: event.supportLink || null,
     event_at: event.eventAt,
     event_end_at: event.eventEndAt,
     updated_at: new Date().toISOString(),
   }).eq("id", id).eq("user_id", user.id)
-    .select("id,title,description,location,event_at,event_end_at").single();
-  if (error || !data) throw new Error("Agenda tidak ditemukan.");
+    .select("id,title,description,location,support_link,event_at,event_end_at").single();
+  if (error || !data) {
+    console.error("Update agenda gagal", error ? {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    } : { message: "Data API tidak mengembalikan agenda." });
+    throw new Error(eventSchemaMessage(error) ?? "Agenda tidak ditemukan atau tidak dapat diperbarui.");
+  }
 
   const defaultReminder = new Date(new Date(event.eventAt).getTime() - 10 * 60_000).toISOString();
   const existing = await db.from("event_reminders").select("id")

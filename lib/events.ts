@@ -9,6 +9,7 @@ export type EventItem = {
   title: string;
   description: string;
   location: string;
+  supportLink: string;
   eventAt: string;
   eventEndAt: string | null;
   reminders: EventReminder[];
@@ -19,6 +20,7 @@ export type EventRow = {
   title: string;
   description: string | null;
   location: string | null;
+  support_link: string | null;
   event_at: string;
   event_end_at: string | null;
 };
@@ -36,6 +38,7 @@ export function eventFromRow(row: EventRow, reminders: ReminderRow[] = []): Even
     title: row.title,
     description: row.description ?? "",
     location: row.location ?? "",
+    supportLink: row.support_link ?? "",
     eventAt: row.event_at,
     eventEndAt: row.event_end_at,
     reminders: reminders

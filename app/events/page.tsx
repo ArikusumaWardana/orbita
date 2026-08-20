@@ -11,7 +11,7 @@ export default async function EventsPage() {
   await ensureOnboarding();
   const { db, user } = await getAuthenticatedDatabase();
   const [eventResult, reminderResult, taskResult] = await Promise.all([
-    db.from("events").select("id,title,description,location,event_at,event_end_at")
+    db.from("events").select("id,title,description,location,support_link,event_at,event_end_at")
       .eq("user_id", user.id).order("event_at", { ascending: true }),
     db.from("event_reminders").select("id,event_id,remind_at,is_default")
       .eq("user_id", user.id).order("remind_at", { ascending: true }),

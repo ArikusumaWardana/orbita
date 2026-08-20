@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD)
 ## Personal Dashboard & Productivity Hub
 
-**Versi:** 1.4 (PWA installable dengan fallback offline aman)
+**Versi:** 1.5 (agenda mendukung link pendukung)
 **Status:** Draft untuk review
 **Terakhir diperbarui:** 20 Agustus 2026
 
@@ -99,10 +99,12 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 - Sebagai pengguna, saya ingin membuat event dengan nama, deskripsi opsional, tanggal, dan jam, agar saya bisa mencatat agenda penting (meeting, janji, dll).
 - Sebagai pengguna, saya ingin memilih apakah agenda memiliki satu waktu atau rentang waktu mulai dan selesai, agar durasi kegiatan dapat dicatat bila diperlukan.
 - Sebagai pengguna, saya ingin mengatur waktu reminder custom (bukan hanya default), agar saya bisa diingatkan lebih awal untuk event penting (misal: H-1).
+- Sebagai pengguna, saya ingin menyimpan link meeting, peta, atau referensi pada agenda agar dapat membukanya langsung saat dibutuhkan.
 - Sebagai pengguna, saya secara default ingin diingatkan 10 menit sebelum event dimulai tanpa harus mengatur manual.
 
 **Acceptance Criteria**
-- [ ] Form event: `title` (wajib), `description` (opsional), `event_at`, `location` (opsional), pilihan "Gunakan rentang waktu", dan `event_end_at` yang wajib hanya ketika rentang diaktifkan.
+- [ ] Form event: `title` (wajib), `description` (opsional), `event_at`, `location` (opsional), `support_link` (opsional), pilihan "Gunakan rentang waktu", dan `event_end_at` yang wajib hanya ketika rentang diaktifkan.
+- [ ] `support_link` menerima URL `http` atau `https` maksimal 2.048 karakter dan ditampilkan sebagai tautan yang dapat dibuka dari daftar Agenda serta halaman Hari Ini.
 - [ ] Jika rentang waktu diaktifkan, `event_end_at` harus lebih besar dari `event_at`. Jika tidak diaktifkan, `event_end_at` disimpan sebagai `null`.
 - [ ] Setiap event otomatis membuat 1 reminder default di `event_reminders` dengan `remind_at = event_datetime - interval '10 minutes'`.
 - [ ] User dapat menambah reminder tambahan (custom tanggal+jam bebas, bisa lebih dari satu, misal H-1 jam 08:00 & H-0 10 menit sebelum).
@@ -272,6 +274,7 @@ create table public.events (
   title text not null check (char_length(title) between 1 and 200),
   description text,
   location text,
+  support_link text check (support_link is null or (char_length(support_link) <= 2048 and support_link ~ '^https?://')),
   event_at timestamptz not null,
   event_end_at timestamptz,
   created_at timestamptz not null default now(),

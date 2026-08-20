@@ -16,6 +16,7 @@ function streamEvent(event: AssistantStreamEvent) {
 
 function text(value: unknown, fallback = "") { return typeof value === "string" ? value.slice(0, 2000) : fallback; }
 function iso(value: unknown, fallback: string) { const parsed = new Date(typeof value === "string" ? value : ""); return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString(); }
+function supportLink(value: unknown) { const candidate = text(value).trim(); if (!candidate) return ""; try { const url = new URL(candidate); return url.protocol === "http:" || url.protocol === "https:" ? candidate.slice(0, 2048) : ""; } catch { return ""; } }
 
 function suggestionFromCall(call: FunctionCall, now: Date, pocketIds: Set<string>, categoryTypes: Map<string, "income" | "expense">): AssistantSuggestion | null {
   const args = call.args ?? {};
@@ -24,7 +25,7 @@ function suggestionFromCall(call: FunctionCall, now: Date, pocketIds: Set<string
     const start = iso(args.event_at, now.toISOString());
     const end = args.event_end_at ? iso(args.event_end_at, "") : null;
     const reminders = Array.isArray(args.reminders) ? [...new Set(args.reminders.map((item) => iso(item, "")).filter((item) => item && new Date(item) < new Date(start)))].slice(0, 10) : [];
-    return { type: "event", title: text(args.title, "Agenda baru").slice(0, 200), description: text(args.description), location: text(args.location).slice(0, 300), eventAt: start, eventEndAt: end && new Date(end) > new Date(start) ? end : null, reminders };
+    return { type: "event", title: text(args.title, "Agenda baru").slice(0, 200), description: text(args.description), location: text(args.location).slice(0, 300), supportLink: supportLink(args.support_link), eventAt: start, eventEndAt: end && new Date(end) > new Date(start) ? end : null, reminders };
   }
   if (call.name === "suggest_create_transaction") {
     const pocketId = text(args.pocket_id);
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     const [profile, tasks, events, transactions, pockets, categories, history] = await Promise.all([
       db.from("profiles").select("ai_daily_request_count,ai_request_reset_at,timezone").eq("id", user.id).single(),
       db.from("tasks").select("title,due_at").eq("user_id", user.id).eq("status", "pending").is("deleted_at", null).gte("due_at", now.toISOString()).lte("due_at", sevenDays).order("due_at").limit(40),
-      db.from("events").select("title,event_at,event_end_at,location").eq("user_id", user.id).gte("event_at", now.toISOString()).lte("event_at", sevenDays).order("event_at").limit(40),
+      db.from("events").select("title,event_at,event_end_at,location,support_link").eq("user_id", user.id).gte("event_at", now.toISOString()).lte("event_at", sevenDays).order("event_at").limit(40),
       db.from("transactions").select("type,amount,category_id,pocket_id").eq("user_id", user.id).gte("transaction_date", thirtyDaysAgo).limit(500),
       db.from("pockets").select("id,name,starting_balance").eq("user_id", user.id).order("created_at"),
       db.from("categories").select("id,name,type").eq("user_id", user.id),
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
         generationConfig: { maxOutputTokens: 1200 },
         tools: [{ functionDeclarations: [
           { name: "suggest_create_task", description: "Buat draft task hanya ketika pengguna meminta task baru.", parameters: { type: "OBJECT", properties: { title: { type: "STRING" }, description: { type: "STRING" }, due_at: { type: "STRING", description: "Waktu ISO 8601 dengan zona waktu." } }, required: ["title", "due_at"] } },
-          { name: "suggest_create_event", description: "Buat draft agenda hanya ketika pengguna meminta agenda baru. Masukkan semua pengingat tambahan yang diminta pengguna ke reminders. Pengingat bawaan 10 menit dibuat otomatis dan tidak perlu dimasukkan.", parameters: { type: "OBJECT", properties: { title: { type: "STRING" }, description: { type: "STRING" }, location: { type: "STRING" }, event_at: { type: "STRING", description: "Waktu mulai ISO 8601 dengan zona waktu." }, event_end_at: { type: "STRING", description: "Waktu selesai ISO 8601 jika ada rentang." }, reminders: { type: "ARRAY", description: "Daftar waktu pengingat tambahan ISO 8601, semuanya sebelum event_at.", items: { type: "STRING" } } }, required: ["title", "event_at"] } },
+          { name: "suggest_create_event", description: "Buat draft agenda hanya ketika pengguna meminta agenda baru. Sertakan link pendukung jika pengguna memberikan link meeting, peta, atau referensi. Masukkan semua pengingat tambahan yang diminta pengguna ke reminders. Pengingat bawaan 10 menit dibuat otomatis dan tidak perlu dimasukkan.", parameters: { type: "OBJECT", properties: { title: { type: "STRING" }, description: { type: "STRING" }, location: { type: "STRING" }, support_link: { type: "STRING", description: "URL http atau https untuk meeting, peta, atau referensi agenda." }, event_at: { type: "STRING", description: "Waktu mulai ISO 8601 dengan zona waktu." }, event_end_at: { type: "STRING", description: "Waktu selesai ISO 8601 jika ada rentang." }, reminders: { type: "ARRAY", description: "Daftar waktu pengingat tambahan ISO 8601, semuanya sebelum event_at.", items: { type: "STRING" } } }, required: ["title", "event_at"] } },
           { name: "suggest_create_transaction", description: "Buat draft transaksi hanya ketika pengguna meminta pencatatan pemasukan atau pengeluaran. Gunakan ID dompet dan kategori dari konteks.", parameters: { type: "OBJECT", properties: { transaction_type: { type: "STRING", enum: ["income", "expense"] }, amount: { type: "NUMBER" }, description: { type: "STRING" }, transaction_date: { type: "STRING", description: "Tanggal YYYY-MM-DD." }, pocket_id: { type: "STRING" }, category_id: { type: "STRING" } }, required: ["transaction_type", "amount", "transaction_date", "pocket_id", "category_id"] } },
         ] }],
       }),

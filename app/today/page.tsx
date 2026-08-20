@@ -33,8 +33,8 @@ export default async function TodayPage() {
 
   const [tasks, eventStarts, eventSpans, transactions] = await Promise.all([
     db.from("tasks").select("id,title,description,due_at").eq("user_id", user.id).eq("status", "pending").is("deleted_at", null).gte("due_at", range.start).lt("due_at", range.end).order("due_at").limit(8),
-    db.from("events").select("id,title,description,location,event_at,event_end_at").eq("user_id", user.id).gte("event_at", range.start).lt("event_at", range.end).order("event_at").limit(8),
-    db.from("events").select("id,title,description,location,event_at,event_end_at").eq("user_id", user.id).lt("event_at", range.start).gte("event_end_at", range.start).order("event_at", { ascending: false }).limit(8),
+    db.from("events").select("id,title,description,location,support_link,event_at,event_end_at").eq("user_id", user.id).gte("event_at", range.start).lt("event_at", range.end).order("event_at").limit(8),
+    db.from("events").select("id,title,description,location,support_link,event_at,event_end_at").eq("user_id", user.id).lt("event_at", range.start).gte("event_end_at", range.start).order("event_at", { ascending: false }).limit(8),
     db.from("transactions").select("id,type,amount,description,transaction_date").eq("user_id", user.id).eq("transaction_date", range.date).order("created_at", { ascending: false }).limit(100),
   ]);
   if (tasks.error || eventStarts.error || eventSpans.error || transactions.error) throw new Error("Ringkasan hari ini belum dapat dimuat. Coba muat ulang halaman.");

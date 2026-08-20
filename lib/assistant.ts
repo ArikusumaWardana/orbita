@@ -15,7 +15,7 @@ export type AssistantMessageRow = {
 };
 
 export type TaskSuggestion = { type: "task"; title: string; description: string; dueAt: string };
-export type EventSuggestion = { type: "event"; title: string; description: string; location: string; eventAt: string; eventEndAt: string | null; reminders: string[] };
+export type EventSuggestion = { type: "event"; title: string; description: string; location: string; supportLink: string; eventAt: string; eventEndAt: string | null; reminders: string[] };
 export type TransactionSuggestion = { type: "transaction"; transactionType: "income" | "expense"; amount: number; description: string; transactionDate: string; pocketId: string; categoryId: string };
 export type AssistantSuggestion = TaskSuggestion | EventSuggestion | TransactionSuggestion;
 
