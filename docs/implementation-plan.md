@@ -54,4 +54,5 @@ Status: implementation complete. The authenticated assistant has aggregated acco
 
 - Automated environment readiness check and public-route smoke test are available through `npm run check:env` and `npm run smoke:public`.
 - Neon production is ready, email/password authentication requires OTP, and all ten user-owned tables have RLS enabled.
-- Production verification remains pending until the deployment has its trusted Neon Auth origin, `DATABASE_URL`, cron secret, VAPID keys, and a signed-in browser session.
+- Production environment, Neon Auth origin, database connection, cron secret, and VAPID keys are configured. Signed-in browser verification remains pending.
+- Production is deployed at `https://orbita-memo.vercel.app`. The domain is registered as a Neon Auth trusted origin, all public PWA smoke checks pass, and the cron endpoint rejects unauthenticated requests. cron-job.org job `8293394` invokes the protected reminder endpoint every minute and its first automatic execution returned HTTP 200. Signed-in and browser push delivery smoke tests remain pending.

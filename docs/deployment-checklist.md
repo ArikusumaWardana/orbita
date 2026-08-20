@@ -34,5 +34,6 @@ Gunakan checklist ini setelah preview atau production URL tersedia.
 
 - Kirim pertanyaan kontekstual dan permintaan di luar scope.
 - Buat beberapa draft aksi, pilih sebagian, konfirmasi, lalu retry item yang gagal.
-- Aktifkan push, buat task atau reminder jatuh tempo, dan panggil cron dengan bearer secret.
+- Pada Vercel Hobby, jadwalkan layanan cron eksternal untuk memanggil `GET /api/cron/check-reminders` setiap menit dengan header `Authorization: Bearer <CRON_SECRET>`. Vercel Hobby tidak mendukung jadwal per menit.
+- Aktifkan push, buat task atau reminder jatuh tempo, dan pastikan scheduler memanggil endpoint dengan bearer secret.
 - Pastikan notifikasi in-app dan push hanya dikirim sekali.

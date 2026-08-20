@@ -26,6 +26,24 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
+function friendlyPushError(caught: unknown) {
+  const error = caught instanceof Error ? caught : null;
+  const message = error?.message.toLowerCase() ?? "";
+  const isPushServiceError = message.includes("registration failed") || message.includes("push service error");
+  const isBrave = typeof (navigator as Navigator & { brave?: unknown }).brave !== "undefined";
+
+  if (isPushServiceError && isBrave) {
+    return "Brave belum dapat terhubung ke layanan notifikasi. Aktifkan Google services for push messaging, lalu coba lagi.";
+  }
+  if (isPushServiceError || error?.name === "AbortError") {
+    return "Browser belum dapat terhubung ke layanan notifikasi. Periksa koneksi, lalu coba lagi.";
+  }
+  if (error?.name === "NotAllowedError") {
+    return "Izin notifikasi belum diberikan. Izinkan notifikasi dari pengaturan browser, lalu coba lagi.";
+  }
+  return error?.message || "Notifikasi browser belum dapat diaktifkan.";
+}
+
 export function NotificationCenter() {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -93,7 +111,7 @@ export function NotificationCenter() {
       setPushState("enabled");
       showToast("success", "Notifikasi browser berhasil diaktifkan.");
     } catch (caught) {
-      showToast("error", caught instanceof Error ? caught.message : "Notifikasi browser belum dapat diaktifkan.");
+      showToast("error", friendlyPushError(caught));
     }
   }
 
