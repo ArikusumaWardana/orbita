@@ -95,6 +95,12 @@ h3 { margin-bottom: 7px; }
 .notification-list > button.read { opacity: .7; }
 .notification-empty { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-tertiary); font-size: 12px; }
 .notification-empty svg { width: 20px; height: 20px; }
+.notification-pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--bg-surface); font-size: 11px; color: var(--text-secondary); }
+.notification-pagination-controls { display: flex; align-items: center; gap: 6px; }
+.notification-pagination-button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised); color: var(--text-primary); cursor: pointer; transition: opacity 0.15s ease; }
+.notification-pagination-button:disabled { opacity: 0.35; cursor: not-allowed; }
+.notification-pagination-button:not(:disabled):hover { background: var(--bg-surface); color: var(--accent); }
+.notification-pagination-button svg { width: 14px; height: 14px; }
 .primary-button, .secondary-button, .danger-button, .icon-button { min-height: 44px; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 650; }
 .primary-button { padding: 0 18px; border-radius: 999px; background: var(--accent); color: #fff; }
 [data-theme="dark"] .primary-button { color: #0e0f11; }
@@ -128,6 +134,21 @@ h3 { margin-bottom: 7px; }
 .task-copy span svg { width: 13px; height: 13px; }
 .delete-button { border: 0; background: transparent; color: var(--text-tertiary); cursor: pointer; }
 .delete-button:hover { color: var(--negative); background: color-mix(in srgb, var(--negative) 10%, transparent); }
+.history-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 18px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-raised); }
+.history-date-filter { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.history-date-filter label { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.history-date-filter input[type="date"] { min-width: 160px; height: 38px; padding: 0 38px 0 12px; border: 1px solid var(--border); border-radius: 8px; background-color: var(--bg-surface); color: var(--text-primary); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: border-color 0.16s ease; }
+[data-theme="light"] .history-date-filter input[type="date"] { background-color: var(--bg-surface); }
+.history-date-filter input[type="date"]:hover { border-color: var(--accent); }
+.history-date-filter input[type="date"]:focus { outline: none; border-color: var(--accent); }
+.history-reset-btn { height: 38px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--accent); font-size: 12px; font-weight: 650; cursor: pointer; white-space: nowrap; transition: background-color 0.16s ease; }
+.history-reset-btn:hover { background: var(--bg-surface); }
+.drag-handle-placeholder { width: 28px; height: 28px; display: block; }
+.task-pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); }
+.task-pagination-controls { display: flex; align-items: center; gap: 8px; }
+.task-pagination-button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-raised); color: var(--text-primary); cursor: pointer; transition: opacity 0.15s ease; }
+.task-pagination-button:disabled { opacity: 0.35; cursor: not-allowed; }
+.task-pagination-button:not(:disabled):hover { background: var(--bg-surface); color: var(--accent); }
 .state-card { min-height: 380px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; color: var(--text-secondary); }
 .state-card > svg { width: 24px; height: 24px; margin-bottom: 12px; }
 .state-card p { max-width: 420px; margin-bottom: 20px; line-height: 1.55; }
@@ -513,7 +534,12 @@ select:not([multiple]) { min-width: 0; max-width: 100%; padding-right: 38px; app
   .tabs { width: 100%; }
   .tabs button { flex: 1; min-height: 44px; }
   .task-list li { grid-template-columns: 44px minmax(0,1fr) 44px; gap: 5px; padding-block: 13px; }
-  .drag-handle { display: none; }
+  .drag-handle, .drag-handle-placeholder { display: none; }
+  .history-filters { flex-direction: column; align-items: stretch; gap: 10px; margin-top: 14px; padding: 12px 14px; }
+  .history-date-filter { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 8px; }
+  .history-date-filter input[type="date"] { width: 100%; min-width: 0; }
+  .history-reset-btn { width: 100%; }
+  .task-pagination { flex-direction: column; gap: 12px; align-items: center; text-align: center; }
   .state-card { min-height: 340px; padding-inline: 10px; }
   .bottom-nav { position: fixed; inset: auto 0 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr); min-height: calc(68px + env(safe-area-inset-bottom)); padding: 6px 8px env(safe-area-inset-bottom); border-top: 1px solid var(--border); background: var(--bg-sidebar); }
   .bottom-nav button, .bottom-nav > span, .bottom-nav > a { min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: transparent; color: var(--text-tertiary); font-size: 10px; text-decoration: none; }

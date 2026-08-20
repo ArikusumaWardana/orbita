@@ -5,6 +5,8 @@ import {
   Bot,
   Check,
   CheckSquare2,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock3,
   GripVertical,
@@ -20,12 +22,14 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   createTask as createTaskAction,
   deleteTask as deleteTaskAction,
+  getTaskHistory,
   reorderTasks as reorderTasksAction,
   setTaskCompleted,
+  TaskHistoryResult,
 } from "@/app/actions/tasks";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { NotificationCenter } from "@/components/notification-center";
@@ -45,8 +49,16 @@ function formatDueDate(value: string) {
   }).format(new Date(value));
 }
 
-export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]; userName: string }) {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+export function TaskWorkspace({
+  initialActiveTasks,
+  initialHistoryResult,
+  userName,
+}: {
+  initialActiveTasks: Task[];
+  initialHistoryResult: TaskHistoryResult;
+  userName: string;
+}) {
+  const [activeTasks, setActiveTasks] = useState<Task[]>(initialActiveTasks);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("ready");
   const [errorMessage, setErrorMessage] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
@@ -56,11 +68,74 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reorderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // History date filters and pagination state
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyData, setHistoryData] = useState<TaskHistoryResult>(initialHistoryResult);
+
+  const showError = useCallback((error: unknown, fallback: string) => {
+    setErrorMessage(error instanceof Error ? error.message : fallback);
+    setStatus("error");
+  }, []);
+
+  const fetchHistory = useCallback((
+    start: string,
+    end: string,
+    page: number,
+  ) => {
+    setHistoryLoading(true);
+    getTaskHistory({
+      startDate: start || undefined,
+      endDate: end || undefined,
+      page,
+      limit: 8,
+    })
+      .then((res) => {
+        setHistoryData(res);
+      })
+      .catch((error) => {
+        showError(error, "Riwayat task belum dapat dimuat.");
+      })
+      .finally(() => {
+        setHistoryLoading(false);
+      });
+  }, [showError]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (view === "history") {
+      getTaskHistory({
+        startDate: historyStartDate || undefined,
+        endDate: historyEndDate || undefined,
+        page: historyPage,
+        limit: 8,
+      })
+        .then((res) => {
+          if (!isCancelled) {
+            setHistoryData(res);
+            setHistoryLoading(false);
+          }
+        })
+        .catch((error) => {
+          if (!isCancelled) {
+            showError(error, "Riwayat task belum dapat dimuat.");
+            setHistoryLoading(false);
+          }
+        });
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [view, historyStartDate, historyEndDate, historyPage, showError]);
+
   const loadTasks = useCallback(() => {
     setErrorMessage("");
-    setTasks(initialTasks);
+    setActiveTasks(initialActiveTasks);
+    setHistoryData(initialHistoryResult);
     setStatus("ready");
-  }, [initialTasks]);
+  }, [initialActiveTasks, initialHistoryResult]);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("orbita.theme");
@@ -71,11 +146,6 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
     });
   }, []);
 
-  const visibleTasks = useMemo(
-    () => tasks.filter((task) => (view === "active" ? !task.completedAt : Boolean(task.completedAt))),
-    [tasks, view],
-  );
-
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
@@ -85,24 +155,26 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
 
   async function createTask(task: Pick<Task, "title" | "description" | "dueAt">) {
     const created = await createTaskAction(task);
-    setTasks((current) => [...current, created]);
+    setActiveTasks((current) => [...current, created]);
     setDialogOpen(false);
     setView("active");
   }
 
   async function completeTask(id: string) {
-    const task = tasks.find((item) => item.id === id);
+    const task = activeTasks.find((item) => item.id === id);
     if (!task) return;
-    const previous = tasks;
-    setTasks(tasks.map((item) => (item.id === id ? { ...item, completedAt: new Date().toISOString() } : item)));
+    const previous = activeTasks;
+    setActiveTasks(activeTasks.filter((item) => item.id !== id));
     setLastCompleted(task);
     if (undoTimer.current) clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(() => setLastCompleted(null), 5000);
     try {
-      const updated = await setTaskCompleted(id, true);
-      setTasks((current) => current.map((item) => (item.id === id ? updated : item)));
+      await setTaskCompleted(id, true);
+      if (view === "history") {
+        fetchHistory(historyStartDate, historyEndDate, historyPage);
+      }
     } catch (error) {
-      setTasks(previous);
+      setActiveTasks(previous);
       setLastCompleted(null);
       showError(error, "Task belum dapat diselesaikan.");
     }
@@ -111,34 +183,49 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
   async function undoComplete() {
     if (!lastCompleted) return;
     const task = lastCompleted;
-    const previous = tasks;
-    setTasks(tasks.map((item) => (item.id === task.id ? { ...item, completedAt: null } : item)));
+    const previous = activeTasks;
+    setActiveTasks([task, ...activeTasks]);
     setLastCompleted(null);
     try {
-      const updated = await setTaskCompleted(task.id, false);
-      setTasks((current) => current.map((item) => (item.id === task.id ? updated : item)));
+      await setTaskCompleted(task.id, false);
+      if (view === "history") {
+        fetchHistory(historyStartDate, historyEndDate, historyPage);
+      }
     } catch (error) {
-      setTasks(previous);
+      setActiveTasks(previous);
       showError(error, "Task belum dapat dipulihkan.");
     }
   }
 
   async function removeTask(id: string) {
-    const previous = tasks;
-    setTasks(tasks.filter((task) => task.id !== id));
-    try {
-      await deleteTaskAction(id);
-    } catch (error) {
-      setTasks(previous);
-      showError(error, "Task belum dapat dihapus.");
+    if (view === "active") {
+      const previous = activeTasks;
+      setActiveTasks(activeTasks.filter((task) => task.id !== id));
+      try {
+        await deleteTaskAction(id);
+      } catch (error) {
+        setActiveTasks(previous);
+        showError(error, "Task belum dapat dihapus.");
+      }
+    } else {
+      const previous = historyData;
+      setHistoryData((curr) => ({
+        ...curr,
+        tasks: curr.tasks.filter((t) => t.id !== id),
+        pagination: { ...curr.pagination, total: Math.max(0, curr.pagination.total - 1) },
+      }));
+      try {
+        await deleteTaskAction(id);
+        fetchHistory(historyStartDate, historyEndDate, historyPage);
+      } catch (error) {
+        setHistoryData(previous);
+        showError(error, "Task belum dapat dihapus.");
+      }
     }
   }
 
-  function reorderVisibleTasks(reordered: Task[]) {
-    const visibleIds = new Set(visibleTasks.map((task) => task.id));
-    const queue = [...reordered];
-    const nextTasks = tasks.map((task) => (visibleIds.has(task.id) ? queue.shift() ?? task : task));
-    setTasks(nextTasks);
+  function reorderActiveTasks(reordered: Task[]) {
+    setActiveTasks(reordered);
     if (reorderTimer.current) clearTimeout(reorderTimer.current);
     reorderTimer.current = setTimeout(async () => {
       try {
@@ -149,10 +236,14 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
     }, 350);
   }
 
-  function showError(error: unknown, fallback: string) {
-    setErrorMessage(error instanceof Error ? error.message : fallback);
-    setStatus("error");
+  function resetHistoryFilters() {
+    setHistoryStartDate("");
+    setHistoryEndDate("");
+    setHistoryPage(1);
   }
+
+  const currentTasks = view === "active" ? activeTasks : historyData.tasks;
+  const isFilterActive = Boolean(historyStartDate || historyEndDate);
 
   return (
     <div className="app-shell">
@@ -209,30 +300,117 @@ export function TaskWorkspace({ initialTasks, userName }: { initialTasks: Task[]
             </div>
           </div>
 
+          {view === "history" && (
+            <div className="history-filters">
+              <div className="history-date-filter">
+                <label htmlFor="history-start-date">Dari:</label>
+                <input
+                  id="history-start-date"
+                  type="date"
+                  value={historyStartDate}
+                  onChange={(e) => {
+                    setHistoryStartDate(e.target.value);
+                    setHistoryPage(1);
+                  }}
+                />
+              </div>
+
+              <div className="history-date-filter">
+                <label htmlFor="history-end-date">Sampai:</label>
+                <input
+                  id="history-end-date"
+                  type="date"
+                  value={historyEndDate}
+                  onChange={(e) => {
+                    setHistoryEndDate(e.target.value);
+                    setHistoryPage(1);
+                  }}
+                />
+              </div>
+
+              {isFilterActive && (
+                <button type="button" className="history-reset-btn" onClick={resetHistoryFilters}>
+                  Reset tanggal
+                </button>
+              )}
+            </div>
+          )}
+
           {status === "loading" && <LoadingState />}
           {status === "error" && <ErrorState message={errorMessage} retry={loadTasks} />}
-          {status === "ready" && visibleTasks.length === 0 && (
-            <EmptyState history={view === "history"} onCreate={() => setDialogOpen(true)} />
+          {status === "ready" && historyLoading && (
+            <div className="state-card" aria-live="polite"><Loader2 className="spin" /><p>Memuat riwayat task...</p></div>
           )}
-          {status === "ready" && visibleTasks.length > 0 && (
-            <Reorder.Group className="task-list" axis="y" values={visibleTasks} onReorder={reorderVisibleTasks}>
-              <AnimatePresence initial={false}>
-                {visibleTasks.map((task) => (
-                  <Reorder.Item key={task.id} value={task} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -12 }}>
-                    <span className="drag-handle" aria-label={`Geser ${task.title} untuk mengubah urutan`}><GripVertical aria-hidden="true" /></span>
-                    {view === "active" ? (
-                      <button type="button" className="complete-button" onClick={() => completeTask(task.id)} aria-label={`Tandai ${task.title} selesai`}><Check /></button>
-                    ) : <span className="completed-mark" aria-hidden="true"><Check /></span>}
-                    <div className="task-copy">
-                      <strong>{task.title}</strong>
-                      {task.description && <p>{task.description}</p>}
-                      <span><Clock3 aria-hidden="true" /> {formatDueDate(task.dueAt)}</span>
-                    </div>
-                    <button type="button" className="delete-button" onClick={() => removeTask(task.id)} aria-label={`Hapus ${task.title}`}><Trash2 /></button>
-                  </Reorder.Item>
-                ))}
-              </AnimatePresence>
-            </Reorder.Group>
+          {status === "ready" && !historyLoading && currentTasks.length === 0 && (
+            <EmptyState history={view === "history"} onCreate={() => setDialogOpen(true)} isFiltered={isFilterActive} />
+          )}
+
+          {status === "ready" && !historyLoading && currentTasks.length > 0 && (
+            <>
+              {view === "active" ? (
+                <Reorder.Group className="task-list" axis="y" values={activeTasks} onReorder={reorderActiveTasks}>
+                  <AnimatePresence initial={false}>
+                    {activeTasks.map((task) => (
+                      <Reorder.Item key={task.id} value={task} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -12 }}>
+                        <span className="drag-handle" aria-label={`Geser ${task.title} untuk mengubah urutan`}><GripVertical aria-hidden="true" /></span>
+                        <button type="button" className="complete-button" onClick={() => completeTask(task.id)} aria-label={`Tandai ${task.title} selesai`}><Check /></button>
+                        <div className="task-copy">
+                          <strong>{task.title}</strong>
+                          {task.description && <p>{task.description}</p>}
+                          <span><Clock3 aria-hidden="true" /> {formatDueDate(task.dueAt)}</span>
+                        </div>
+                        <button type="button" className="delete-button" onClick={() => removeTask(task.id)} aria-label={`Hapus ${task.title}`}><Trash2 /></button>
+                      </Reorder.Item>
+                    ))}
+                  </AnimatePresence>
+                </Reorder.Group>
+              ) : (
+                <ul className="task-list">
+                  <AnimatePresence initial={false}>
+                    {historyData.tasks.map((task) => (
+                      <motion.li key={task.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -12 }}>
+                        <span className="drag-handle-placeholder" aria-hidden="true" />
+                        <span className="completed-mark" aria-hidden="true"><Check /></span>
+                        <div className="task-copy">
+                          <strong>{task.title}</strong>
+                          {task.description && <p>{task.description}</p>}
+                          <span><Clock3 aria-hidden="true" /> Selesai: {formatDueDate(task.completedAt ?? task.dueAt)}</span>
+                        </div>
+                        <button type="button" className="delete-button" onClick={() => removeTask(task.id)} aria-label={`Hapus ${task.title}`}><Trash2 /></button>
+                      </motion.li>
+                    ))}
+                  </AnimatePresence>
+                </ul>
+              )}
+
+              {view === "history" && historyData.pagination.totalPages > 1 && (
+                <div className="task-pagination">
+                  <span>
+                    Halaman {historyData.pagination.page} dari {historyData.pagination.totalPages} ({historyData.pagination.total} task selesai)
+                  </span>
+                  <div className="task-pagination-controls">
+                    <button
+                      type="button"
+                      className="task-pagination-button"
+                      disabled={!historyData.pagination.hasPrevPage || historyLoading}
+                      onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                      aria-label="Halaman sebelumnya"
+                    >
+                      <ChevronLeft />
+                    </button>
+                    <button
+                      type="button"
+                      className="task-pagination-button"
+                      disabled={!historyData.pagination.hasNextPage || historyLoading}
+                      onClick={() => setHistoryPage((p) => p + 1)}
+                      aria-label="Halaman selanjutnya"
+                    >
+                      <ChevronRight />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </section>
       </main>
@@ -296,6 +474,25 @@ function LoadingState() { return <div className="state-card" aria-live="polite">
 
 function ErrorState({ message, retry }: { message: string; retry: () => void }) { return <div className="state-card error-state"><CircleAlert /><h3>Task belum dapat dibuka</h3><p>{message}</p><button type="button" className="secondary-button" onClick={retry}><RotateCcw /> Coba lagi</button></div>; }
 
-function EmptyState({ history, onCreate }: { history: boolean; onCreate: () => void }) { return <div className="state-card empty-state"><span className="empty-orbit" aria-hidden="true"><CheckSquare2 /></span><h3>{history ? "Belum ada task selesai" : "Ruang fokusmu masih kosong"}</h3><p>{history ? "Task yang selesai akan tersimpan di sini." : "Tambahkan satu hal yang ingin kamu selesaikan."}</p>{!history && <button type="button" className="secondary-button" onClick={onCreate}><Plus /> Tambah task pertama</button>}</div>; }
+function EmptyState({ history, onCreate, isFiltered }: { history: boolean; onCreate: () => void; isFiltered?: boolean }) {
+  if (history && isFiltered) {
+    return (
+      <div className="state-card empty-state">
+        <span className="empty-orbit" aria-hidden="true"><CalendarDays /></span>
+        <h3>Tidak ada riwayat ditemukan</h3>
+        <p>Tidak ada task selesai pada rentang tanggal yang dipilih.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="state-card empty-state">
+      <span className="empty-orbit" aria-hidden="true"><CheckSquare2 /></span>
+      <h3>{history ? "Belum ada task selesai" : "Ruang fokusmu masih kosong"}</h3>
+      <p>{history ? "Task yang selesai akan tersimpan di sini." : "Tambahkan satu hal yang ingin kamu selesaikan."}</p>
+      {!history && <button type="button" className="secondary-button" onClick={onCreate}><Plus /> Tambah task pertama</button>}
+    </div>
+  );
+}
 
 function UndoToast({ title, undo, dismiss }: { title: string; undo: () => void; dismiss: () => void }) { return <motion.div className="undo-toast" role="status" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}><div><strong>Task selesai</strong><span>{title}</span></div><button type="button" onClick={undo}>Urungkan</button><button type="button" className="toast-close" onClick={dismiss} aria-label="Tutup notifikasi"><X /></button><span className="toast-progress" /></motion.div>; }
+

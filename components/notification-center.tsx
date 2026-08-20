@@ -1,8 +1,8 @@
 "use client";
 
-import { Bell, BellRing, CheckCheck, Loader2, X } from "lucide-react";
+import { Bell, BellRing, CheckCheck, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeToPush, unsubscribeFromPush } from "@/app/actions/push";
 import { showToast } from "@/components/ui/toast-provider";
 
@@ -14,6 +14,15 @@ type NotificationItem = {
   resource_id: string | null;
   read_at: string | null;
   created_at: string;
+};
+
+type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 };
 
 function decodeVapidKey(value: string) {
@@ -49,27 +58,42 @@ export function NotificationCenter() {
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    limit: 5,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
   const [pushState, setPushState] = useState<"checking" | "available" | "enabled" | "denied" | "unavailable">("checking");
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
-  const unreadCount = useMemo(() => notifications.filter((item) => !item.read_at).length, [notifications]);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (targetPage = page) => {
     try {
-      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const response = await fetch(`/api/notifications?page=${targetPage}&limit=5`, { cache: "no-store" });
       if (!response.ok) return;
-      const payload = await response.json() as { notifications: NotificationItem[] };
+      const payload = await response.json() as {
+        notifications: NotificationItem[];
+        unreadCount?: number;
+        pagination?: PaginationMeta;
+      };
       setNotifications(payload.notifications);
+      if (typeof payload.unreadCount === "number") setUnreadCount(payload.unreadCount);
+      if (payload.pagination) setPagination(payload.pagination);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
-    loadNotifications();
-    const interval = window.setInterval(loadNotifications, 15_000);
+    loadNotifications(page);
+    const interval = window.setInterval(() => loadNotifications(page), 15_000);
     return () => window.clearInterval(interval);
-  }, [loadNotifications]);
+  }, [loadNotifications, page]);
 
   useEffect(() => {
     async function checkPush() {
@@ -133,7 +157,10 @@ export function NotificationCenter() {
   async function markRead(item: NotificationItem) {
     if (!item.read_at) {
       const response = await fetch("/api/notifications", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id }) });
-      if (response.ok) setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, read_at: new Date().toISOString() } : notification));
+      if (response.ok) {
+        setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, read_at: new Date().toISOString() } : notification));
+        setUnreadCount((c) => Math.max(0, c - 1));
+      }
     }
     setOpen(false);
     router.push(item.type === "event_reminder" ? "/events" : "/");
@@ -141,7 +168,10 @@ export function NotificationCenter() {
 
   async function markAllRead() {
     const response = await fetch("/api/notifications", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ all: true }) });
-    if (response.ok) setNotifications((current) => current.map((item) => ({ ...item, read_at: item.read_at ?? new Date().toISOString() })));
+    if (response.ok) {
+      setNotifications((current) => current.map((item) => ({ ...item, read_at: item.read_at ?? new Date().toISOString() })));
+      setUnreadCount(0);
+    }
   }
 
   return <div className="notification-center" ref={panelRef}>
@@ -150,6 +180,13 @@ export function NotificationCenter() {
       <header><div><p className="section-kicker">Pembaruan terbaru</p><h2>Notifikasi</h2></div><button type="button" className="icon-button" onClick={() => setOpen(false)} aria-label="Tutup notifikasi"><X /></button></header>
       <div className="notification-tools">{pushState === "available" && <button type="button" onClick={enablePush}>Aktifkan notifikasi browser</button>}{pushState === "enabled" && <button type="button" onClick={disablePush}>Nonaktifkan push</button>}{pushState === "denied" && <span>Izin notifikasi diblokir oleh browser.</span>}{pushState === "unavailable" && <span>Push belum tersedia pada perangkat ini.</span>}{unreadCount > 0 && <button type="button" onClick={markAllRead}><CheckCheck /> Tandai dibaca</button>}</div>
       <div className="notification-list">{loading ? <div className="notification-empty"><Loader2 className="spin" /><span>Memuat notifikasi...</span></div> : notifications.length === 0 ? <div className="notification-empty"><Bell /><span>Belum ada notifikasi.</span></div> : notifications.map((item) => <button type="button" key={item.id} className={item.read_at ? "read" : ""} onClick={() => markRead(item)}><i aria-hidden="true" /><span><strong>{item.title}</strong>{item.body && <small>{item.body}</small>}<time>{formatTime(item.created_at)}</time></span></button>)}</div>
+      {pagination.totalPages > 1 && <div className="notification-pagination">
+        <span>Halaman {pagination.page} dari {pagination.totalPages}</span>
+        <div className="notification-pagination-controls">
+          <button type="button" className="notification-pagination-button" disabled={!pagination.hasPrevPage || loading} onClick={() => { setLoading(true); setPage((p) => Math.max(1, p - 1)); }} aria-label="Halaman sebelumnya"><ChevronLeft /></button>
+          <button type="button" className="notification-pagination-button" disabled={!pagination.hasNextPage || loading} onClick={() => { setLoading(true); setPage((p) => p + 1); }} aria-label="Halaman selanjutnya"><ChevronRight /></button>
+        </div>
+      </div>}
     </div>}
   </div>;
 }
