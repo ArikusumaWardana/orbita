@@ -48,4 +48,10 @@ Status: implementation complete. Multiple pockets, derived balances, transaction
 - Streaming chat states and per-user history
 - Manifest, service worker, offline cache behavior, and install checks
 
-Status: in progress. The authenticated assistant has aggregated account context, RLS-scoped history, streaming responses, topic guardrails, and a 30-request daily limit. Gemini function calls can produce up to ten editable task, event, or transaction drafts in one request. Users select which drafts to run, receive per-item success or error states, and retry only failed items; explicit confirmation invokes the existing validated Server Actions. PWA installability and offline caching remain pending.
+Status: implementation complete. The authenticated assistant has aggregated account context, RLS-scoped history, streaming responses, topic guardrails, and a 30-request daily limit. Gemini function calls can produce up to ten editable task, event, or transaction drafts in one request. Users select which drafts to run, receive per-item success or error states, and retry only failed items; explicit confirmation invokes the existing validated Server Actions. The PWA now includes a valid manifest, install icons, service-worker lifecycle, static app-shell caching, an offline fallback, and preserved Web Push handlers. Authenticated pages, API responses, and user data remain network-only to prevent account data from persisting in a shared browser cache. Install and offline behavior still require a production browser smoke test.
+
+## MVP deployment verification
+
+- Automated environment readiness check and public-route smoke test are available through `npm run check:env` and `npm run smoke:public`.
+- Neon production is ready, email/password authentication requires OTP, and all ten user-owned tables have RLS enabled.
+- Production verification remains pending until the deployment has its trusted Neon Auth origin, `DATABASE_URL`, cron secret, VAPID keys, and a signed-in browser session.

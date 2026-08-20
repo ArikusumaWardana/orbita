@@ -5,5 +5,5 @@ export default auth.middleware({
 });
 
 export const config = {
-  matcher: ["/((?!api/auth|api/cron|auth|_next/static|_next/image|favicon.ico|sw.js).*)"],
+  matcher: ["/((?!api/auth|api/cron|auth|offline|pwa|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|sw.js).*)"],
 };

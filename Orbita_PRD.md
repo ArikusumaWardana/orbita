@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Personal Dashboard & Productivity Hub
 
-**Versi:** 1.3 (Agenda mendukung waktu tunggal atau rentang waktu)
+**Versi:** 1.4 (PWA installable dengan fallback offline aman)
 **Status:** Draft untuk review
-**Terakhir diperbarui:** 19 Agustus 2026
+**Terakhir diperbarui:** 20 Agustus 2026
 
 ---
 
@@ -571,7 +571,7 @@ Contoh kerangka system prompt (disederhanakan):
 | Security | Semua tabel wajib RLS aktif (Neon RLS Authorize); API key Gemini & connection string role `owner` hanya di server/Route Handler, tidak pernah di client bundle |
 | Availability | Target uptime 99.5% (bergantung Vercel + Neon SLA) |
 | Accessibility | Kontras warna WCAG AA minimum, semua interactive element dapat diakses keyboard |
-| PWA | Installable (manifest.json valid), bekerja offline minimal untuk melihat data ter-cache terakhir (via `next-pwa` + IndexedDB cache) |
+| PWA | Installable dengan manifest valid, ikon 192/512, dan service worker custom. App shell serta aset statis tersedia offline; halaman terautentikasi, respons API, dan data akun tetap network-only agar data pengguna tidak tertinggal di cache browser bersama. Saat jaringan terputus, navigasi menampilkan fallback offline yang jelas. |
 | Privasi | Data finansial dienkripsi at-rest & in-transit (default Neon), tidak ada data user dibagikan ke pihak ketiga selain Gemini API (untuk konteks AI, sesuai kebijakan privasi yang diinformasikan ke user) |
 
 ---

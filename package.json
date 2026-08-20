@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "check:env": "node scripts/check-deployment-env.mjs",
     "start": "next start",
+    "smoke:public": "node scripts/smoke-public.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
