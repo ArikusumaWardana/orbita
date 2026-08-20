@@ -2,7 +2,7 @@
 
 import { Bot, CalendarDays, Check, CheckSquare2, CircleAlert, Clock3, Home, Loader2, Moon, RotateCcw, Send, Sun, Trash2, WalletCards, X } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, ReactNode, useEffect, useRef, useState } from "react";
 import { clearConversationHistory } from "@/app/actions/assistant";
 import { createEventWithAdditionalReminders } from "@/app/actions/events";
 import { createTask } from "@/app/actions/tasks";
@@ -30,6 +30,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
   const [clearing, setClearing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [batch, setBatch] = useState<BatchItem[]>([]);
+  const [typingAssistantIds, setTypingAssistantIds] = useState<Set<string>>(() => new Set());
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { const value = localStorage.getItem("orbita.theme") === "light" ? "light" : "dark"; document.documentElement.dataset.theme = value; queueMicrotask(() => setTheme(value)); }, []);
@@ -48,6 +49,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
     const userMessage: AssistantMessage = { id: crypto.randomUUID(), role: "user", content: message, createdAt: new Date().toISOString() };
     const assistantId = crypto.randomUUID();
     setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "", createdAt: new Date().toISOString() }]);
+    setTypingAssistantIds((current) => new Set(current).add(assistantId));
     setDraft("");
     setBatch([]);
     setSending(true);
@@ -84,6 +86,11 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
       if (!receivedText) throw new Error("Asisten tidak mengirim jawaban. Coba tulis pertanyaan dengan cara lain.");
     } catch (error) {
       setMessages((current) => current.filter((item) => item.id !== assistantId));
+      setTypingAssistantIds((current) => {
+        const next = new Set(current);
+        next.delete(assistantId);
+        return next;
+      });
       const message = error instanceof Error ? error.message : "Asisten belum dapat menjawab.";
       showToast("error", message);
     } finally { setSending(false); }
@@ -97,6 +104,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
       await clearConversationHistory();
       setMessages([]);
       setBatch([]);
+      setTypingAssistantIds(new Set());
       setConfirmClear(false);
       showToast("success", "Percakapan berhasil dikosongkan.");
     } catch (error) {
@@ -116,7 +124,7 @@ export function AssistantWorkspace({ initialMessages, initialRemaining, pockets,
         <div className="assistant-context-note"><Bot aria-hidden="true" /><p><strong>Jawaban berdasarkan data Orbita milikmu.</strong><span>Asisten dapat membaca ringkasan task, agenda, dan keuangan. Saran tidak akan mengubah data tanpa konfirmasi.</span></p></div>
         <div className="assistant-messages" aria-live="polite">
           {messages.length === 0 && <div className="assistant-empty"><span className="empty-orbit"><Bot /></span><h2>Apa yang ingin kamu periksa?</h2><p>Tanyakan rencana minggu ini, agenda terdekat, atau ringkasan pengeluaranmu.</p><div className="assistant-suggestions">{suggestions.map((item) => <button type="button" key={item} onClick={() => void sendMessage(item)}>{item}</button>)}</div></div>}
-          {messages.map((item) => <article className={`assistant-message ${item.role}`} key={item.id}><span>{item.role === "user" ? "Kamu" : "Orbita"}</span><div>{!item.content && sending ? <span className="assistant-thinking"><Loader2 className="spin" /> Menyusun jawaban...</span> : item.content}</div></article>)}
+          {messages.map((item) => <article className={`assistant-message ${item.role}`} key={item.id}><span>{item.role === "user" ? "Kamu" : "Orbita"}</span><div>{!item.content && sending ? <span className="assistant-thinking"><Loader2 className="spin" /> Menyusun jawaban...</span> : item.role === "assistant" && typingAssistantIds.has(item.id) ? <TypedAssistantMessage text={item.content} onTick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })} onComplete={() => { if (!sending) { setTypingAssistantIds((current) => { const next = new Set(current); next.delete(item.id); return next; }); } }} /> : item.role === "assistant" ? <FormattedMarkdown content={item.content} /> : item.content}</div></article>)}
           {batch.length > 0 && <BatchActionPanel items={batch} setItems={setBatch} pockets={pockets} categories={categories} />}
           <div ref={endRef} />
         </div>
@@ -193,4 +201,122 @@ function TransactionDraftFields({ draft, setDraft, pockets, categories }: { draf
   const matchingCategories = categories.filter((item) => item.type === draft.transactionType);
   function changeType(type: TransactionType) { setDraft({ ...draft, transactionType: type, categoryId: categories.find((item) => item.type === type)?.id ?? "" }); }
   return <><div className="assistant-action-row"><label>Jenis<select value={draft.transactionType} onChange={(event) => changeType(event.target.value as TransactionType)}><option value="expense">Pengeluaran</option><option value="income">Pemasukan</option></select></label><label>Nominal<input type="number" min="1" step="1" value={draft.amount} required onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value) })} /></label></div><div className="assistant-action-row"><label>Dompet<select value={draft.pocketId} required onChange={(event) => setDraft({ ...draft, pocketId: event.target.value })}>{pockets.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Kategori<select value={draft.categoryId} required onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{matchingCategories.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label></div><label>Tanggal<input type="date" value={draft.transactionDate} required onChange={(event) => setDraft({ ...draft, transactionDate: event.target.value })} /></label><label>Catatan<textarea value={draft.description} maxLength={1000} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label></>;
+}
+
+function TypedAssistantMessage({ text, onTick, onComplete }: { text: string; onTick?: () => void; onComplete?: () => void }) {
+  const [displayedLength, setDisplayedLength] = useState(0);
+  const textLength = text.length;
+
+  useEffect(() => {
+    if (displayedLength >= textLength) {
+      if (textLength > 0 && onComplete) {
+        onComplete();
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setDisplayedLength((current) => {
+        const diff = textLength - current;
+        const step = diff > 40 ? 4 : diff > 20 ? 3 : diff > 10 ? 2 : 1;
+        const next = Math.min(textLength, current + step);
+        return next;
+      });
+      onTick?.();
+    }, 10);
+
+    return () => clearInterval(timer);
+  }, [displayedLength, textLength, onTick, onComplete]);
+
+  return <FormattedMarkdown content={text.slice(0, displayedLength)} isTyping={displayedLength < textLength} />;
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const starPairs = text.split("**");
+
+  if (starPairs.length > 1 && starPairs.length % 2 === 0) {
+    const elements: ReactNode[] = [];
+    for (let i = 0; i < starPairs.length; i++) {
+      const chunk = starPairs[i];
+      if (!chunk) continue;
+      if (i % 2 === 1) {
+        elements.push(<strong key={i}>{chunk}</strong>);
+      } else {
+        elements.push(<Fragment key={i}>{chunk}</Fragment>);
+      }
+    }
+    return elements;
+  }
+
+  const regex = /(\*\*.*?\*\*|`.*?`)/g;
+  const parts = text.split(regex);
+
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
+      return <code key={index}>{part.slice(1, -1)}</code>;
+    }
+    return <Fragment key={index}>{part}</Fragment>;
+  });
+}
+
+function FormattedMarkdown({ content, isTyping }: { content: string; isTyping?: boolean }) {
+  const lines = content.split("\n");
+  const lastIndex = lines.length - 1;
+
+  return (
+    <div className="assistant-markdown-content">
+      {lines.map((line, lineIndex) => {
+        const trimmed = line.trim();
+        const isBullet = /^[*-]\s+/.test(trimmed);
+        const isNumbered = /^\d+\.\s+/.test(trimmed);
+        const isLastLine = lineIndex === lastIndex;
+
+        if (isBullet) {
+          const bulletText = line.replace(/^\s*[*-]\s+/, "");
+          return (
+            <div key={lineIndex} className="markdown-bullet-item">
+              <span className="bullet-dot" aria-hidden="true">• </span>
+              <span>
+                {renderInlineMarkdown(bulletText)}
+                {isTyping && isLastLine && <span className="typing-cursor" aria-hidden="true">|</span>}
+              </span>
+            </div>
+          );
+        }
+
+        if (isNumbered) {
+          const match = line.match(/^\s*(\d+)\.\s+(.*)/);
+          const num = match ? match[1] : "1";
+          const numText = match ? match[2] : line;
+          return (
+            <div key={lineIndex} className="markdown-number-item">
+              <span className="number-label">{num}.</span>
+              <span>
+                {renderInlineMarkdown(numText)}
+                {isTyping && isLastLine && <span className="typing-cursor" aria-hidden="true">|</span>}
+              </span>
+            </div>
+          );
+        }
+
+        if (!trimmed) {
+          return (
+            <div key={lineIndex} className="markdown-spacer">
+              {isTyping && isLastLine && <span className="typing-cursor" aria-hidden="true">|</span>}
+            </div>
+          );
+        }
+
+        return (
+          <p key={lineIndex} className="markdown-paragraph">
+            {renderInlineMarkdown(line)}
+            {isTyping && isLastLine && <span className="typing-cursor" aria-hidden="true">|</span>}
+          </p>
+        );
+      })}
+    </div>
+  );
 }

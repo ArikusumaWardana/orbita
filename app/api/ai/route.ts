@@ -50,12 +50,11 @@ export async function POST(request: Request) {
   try {
     const { db, user } = await getAuthenticatedDatabase();
     const now = new Date();
-    const sevenDays = new Date(now.getTime() + 7 * 86_400_000).toISOString();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
     const [profile, tasks, events, transactions, pockets, categories, history] = await Promise.all([
       db.from("profiles").select("ai_daily_request_count,ai_request_reset_at,timezone").eq("id", user.id).single(),
-      db.from("tasks").select("title,due_at").eq("user_id", user.id).eq("status", "pending").is("deleted_at", null).gte("due_at", now.toISOString()).lte("due_at", sevenDays).order("due_at").limit(40),
-      db.from("events").select("title,event_at,event_end_at,location,support_link").eq("user_id", user.id).gte("event_at", now.toISOString()).lte("event_at", sevenDays).order("event_at").limit(40),
+      db.from("tasks").select("title,due_at").eq("user_id", user.id).eq("status", "pending").is("deleted_at", null).gte("due_at", now.toISOString()).order("due_at").limit(50),
+      db.from("events").select("title,event_at,event_end_at,location,support_link").eq("user_id", user.id).or(`event_at.gte.${now.toISOString()},event_end_at.gte.${now.toISOString()}`).order("event_at").limit(50),
       db.from("transactions").select("type,amount,category_id,pocket_id").eq("user_id", user.id).gte("transaction_date", thirtyDaysAgo).limit(500),
       db.from("pockets").select("id,name,starting_balance").eq("user_id", user.id).order("created_at"),
       db.from("categories").select("id,name,type").eq("user_id", user.id),

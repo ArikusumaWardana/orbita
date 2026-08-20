@@ -332,6 +332,15 @@ h3 { margin-bottom: 7px; }
 .assistant-message.user > div { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); background: var(--accent-soft); color: var(--text-primary); }
 .assistant-thinking { display: inline-flex; align-items: center; gap: 8px; color: var(--text-tertiary); }
 .assistant-thinking svg { width: 15px; height: 15px; }
+.typing-cursor { display: inline-block; margin-left: 2px; color: var(--accent); font-weight: 700; animation: typing-blink 0.6s infinite alternate; }
+@keyframes typing-blink { 0% { opacity: 1; } 100% { opacity: 0.15; } }
+.assistant-markdown-content { display: flex; flex-direction: column; gap: 4px; }
+.markdown-paragraph { margin: 0; line-height: 1.6; }
+.markdown-spacer { height: 6px; }
+.markdown-bullet-item, .markdown-number-item { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0; line-height: 1.55; }
+.bullet-dot { color: var(--accent); font-weight: 700; font-size: 14px; line-height: 1.3; flex-shrink: 0; }
+.number-label { color: var(--accent); font-weight: 650; font-size: 13px; line-height: 1.5; flex-shrink: 0; min-width: 18px; }
+.assistant-message strong { color: var(--text-primary); font-weight: 650; }
 .assistant-composer { padding: 14px 18px 16px; border-top: 1px solid var(--border); background: var(--bg-base); }
 .assistant-composer > label { display: block; margin-bottom: 7px; color: var(--text-tertiary); font-size: 10px; font-weight: 650; }
 .assistant-composer > div { display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: end; gap: 10px; }
