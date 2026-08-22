@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Personal Dashboard & Productivity Hub
 
-**Versi:** 1.5 (agenda mendukung link pendukung)
+**Versi:** 1.7 (menambahkan opsi attendance tracking pada Event Reminder)
 **Status:** Draft untuk review
-**Terakhir diperbarui:** 20 Agustus 2026
+**Terakhir diperbarui:** 23 Agustus 2026
 
 ---
 
@@ -101,9 +101,10 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 - Sebagai pengguna, saya ingin mengatur waktu reminder custom (bukan hanya default), agar saya bisa diingatkan lebih awal untuk event penting (misal: H-1).
 - Sebagai pengguna, saya ingin menyimpan link meeting, peta, atau referensi pada agenda agar dapat membukanya langsung saat dibutuhkan.
 - Sebagai pengguna, saya secara default ingin diingatkan 10 menit sebelum event dimulai tanpa harus mengatur manual.
+- Sebagai pengguna, saya ingin **opsi mencatat kehadiran saya** (hadir/tidak hadir) untuk event tertentu, agar saya bisa melacak konsistensi saya menghadiri acara penting (mis. olahraga rutin, kelas, meeting berulang) — tapi tidak dipaksakan untuk semua agenda karena tidak semua event butuh pelacakan ini.
 
 **Acceptance Criteria**
-- [ ] Form event: `title` (wajib), `description` (opsional), `event_at`, `location` (opsional), `support_link` (opsional), pilihan "Gunakan rentang waktu", dan `event_end_at` yang wajib hanya ketika rentang diaktifkan.
+- [ ] Form event: `title` (wajib), `description` (opsional), `event_at`, `location` (opsional), `support_link` (opsional), pilihan "Gunakan rentang waktu", `event_end_at` yang wajib hanya ketika rentang diaktifkan, dan toggle opsional **"Lacak kehadiran"** (`track_attendance`, default `false`).
 - [ ] `support_link` menerima URL `http` atau `https` maksimal 2.048 karakter dan ditampilkan sebagai tautan yang dapat dibuka dari daftar Agenda serta halaman Hari Ini.
 - [ ] Jika rentang waktu diaktifkan, `event_end_at` harus lebih besar dari `event_at`. Jika tidak diaktifkan, `event_end_at` disimpan sebagai `null`.
 - [ ] Setiap event otomatis membuat 1 reminder default di `event_reminders` dengan `remind_at = event_datetime - interval '10 minutes'`.
@@ -111,6 +112,21 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 - [ ] User dapat menghapus/mengedit reminder individual tanpa menghapus event induk.
 - [ ] Event dipindah ke "Past Events" setelah `coalesce(event_end_at, event_at) < now()` sehingga agenda berdurasi tetap aktif sampai waktu selesai.
 - [ ] Kalender view (bulanan) menampilkan dot indicator pada tanggal yang memiliki event/task.
+- [ ] **Attendance toggle (opsional saat create):**
+  - [ ] Jika `track_attendance = false` (default), tombol "Hadir / Tidak Hadir" **tidak ditampilkan sama sekali** pada card event tsb — agenda biasa yang tidak butuh pelacakan tidak menampilkan UI tambahan yang tidak relevan.
+  - [ ] Jika `track_attendance = true`, tombol "Hadir / Tidak Hadir" muncul di card event, tetapi berstatus **disabled** selama `now() < event_at` — mencegah user menandai kehadiran untuk acara yang belum berlangsung.
+  - [ ] Tombol otomatis menjadi **aktif (enabled)** tepat saat `now() >= event_at` (tidak perlu refresh manual — dicek via client-side timer/interval yang membandingkan waktu saat ini dengan `event_at`, atau re-fetch saat card di-render ulang).
+  - [ ] Setelah user menekan salah satu opsi, status tersimpan di `attendance_status` (`attended` / `not_attended`) beserta `attendance_marked_at` (timestamp saat ditekan) — status ini dapat diubah lagi oleh user kapan saja setelah event dimulai (tidak dikunci setelah dipilih sekali).
+  - [ ] Jika event sudah lewat (`coalesce(event_end_at, event_at) < now()`) dan `attendance_status` masih `null` (user tidak pernah menandai), event tetap masuk ke "Past Events" tapi menampilkan badge "Belum ditandai" agar terlihat sebagai gap yang perlu diisi (bukan disembunyikan begitu saja).
+  - [ ] Field `track_attendance` dapat diubah kapan saja lewat edit event (toggle bisa dinyalakan/dimatikan setelah event dibuat, tidak terkunci hanya di saat pembuatan).
+
+**UI/UX — Attendance Button**
+- Di form create/edit event: toggle "Lacak kehadiran" ditempatkan sebagai baris terpisah di bawah field reminder, dengan ikon `UserCheck` (Lucide) dan keterangan singkat di bawahnya ("Tampilkan tombol hadir/tidak hadir saat acara dimulai").
+- Pada `EventItem`/card agenda (hanya jika `track_attendance = true`): dua tombol kecil berdampingan di bagian bawah card — **"✓ Hadir"** (outline hijau, `--accent-positive`) dan **"✕ Tidak Hadir"** (outline merah, `--accent-negative`).
+  - Sebelum event mulai: kedua tombol tampil **disabled** (opacity 40%, cursor `not-allowed`), dengan tooltip singkat saat di-hover: "Aktif setelah acara dimulai".
+  - Begitu `event_at` tercapai: transisi halus (fade dari opacity 40% → 100%, `duration: 0.3s`) tanpa perlu reload — memberi sinyal visual jelas bahwa aksi kini tersedia.
+  - Setelah dipilih: tombol yang dipilih berubah jadi **solid/filled** (bukan outline) sesuai warnanya, tombol yang tidak dipilih tetap outline redup — status tetap terlihat jelas dan bisa diganti kapan saja dengan menekan opsi lain.
+  - Badge "Belum ditandai" (di Past Events, jika `attendance_status is null`): pill kecil warna `--accent-warning`, ditempatkan di pojok card, mengingatkan tanpa mengganggu.
 
 ---
 
@@ -168,7 +184,90 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 
 ---
 
-## 4. Product Enhancement Suggestions (Arsitektur/UX per Fitur)
+### 3.6 Fitur 6: Focus Session (Deep Work Timer)
+
+Menghubungkan To-Do List dengan sesi kerja fokus bergaya Pomodoro — memberi To-Do list "detak" (bukan sekadar checklist statis) dan menghasilkan data baru (waktu fokus) yang bisa dipakai AI Assistant & Weekly Recap.
+
+**User Stories**
+- Sebagai pengguna, saya ingin memulai sesi fokus yang terhubung ke task tertentu, agar waktu kerja saya pada task tersebut tercatat otomatis.
+- Sebagai pengguna, saya ingin memilih durasi sesi (preset atau custom), agar sesuai gaya kerja saya.
+- Sebagai pengguna, saya ingin sesi tetap berjalan meski saya pindah tab/aplikasi lain, dan mendapat notifikasi saat sesi selesai.
+- Sebagai pengguna, saya ingin melihat total waktu fokus harian/mingguan dan streak hari beruntun saya fokus, agar termotivasi menjaga konsistensi.
+
+**Acceptance Criteria**
+- [ ] Tombol "Mulai Fokus" (ikon `Timer`) muncul di setiap `TaskItem`; klik membuka **Focus Session Panel**.
+- [ ] User memilih durasi preset **25 / 45 / 60 menit** atau custom (slider/input, rentang 5–180 menit).
+- [ ] Sesi dicatat di tabel `focus_sessions`: `task_id` (nullable — boleh sesi fokus bebas tanpa task terkait), `planned_duration_seconds`, `actual_duration_seconds`, `started_at`, `ended_at`, `status` (`running` / `completed` / `cancelled`).
+- [ ] Timer berjalan di client (persisted ke `IndexedDB`/`localStorage` agar tahan reload/pindah tab), dengan sinkronisasi final ke server saat sesi selesai atau dibatalkan — bukan disimpan per-detik ke server (hindari beban request berlebihan).
+- [ ] Saat durasi tercapai: trigger `Notification` browser + (opsional) bunyi lonceng halus, tampilkan modal "Sesi selesai! Tambah 5 menit istirahat?".
+- [ ] User dapat **Pause/Resume** dan **Cancel** kapan saja; jika cancel, `actual_duration_seconds` tetap dicatat sampai titik cancel (status `cancelled`) — tidak menghukum user yang berhenti di tengah dengan membuang datanya.
+- [ ] Dashboard/Overview menampilkan `MetricCard` "Total Fokus Minggu Ini" (format `Xj Ym`) dengan delta vs minggu lalu, dan "Streak Fokus" (hari beruntun dengan ≥1 sesi *completed*).
+- [ ] Riwayat sesi fokus dikelompokkan per hari (pola sama seperti History To-Do di §3.1), menampilkan durasi aktual & task terkait (jika ada).
+
+**UI/UX**
+- **Focus Session Panel**: bottom sheet (mobile) / modal center (desktop) yang muncul saat "Mulai Fokus" diklik.
+- **Timer display**: lingkaran progress (`circular countdown`) dengan angka `mm:ss` besar (32px, tabular numerals) di tengah — ring progress memakai `--accent-primary`, sisa waktu direpresentasikan sebagai arc yang menyusut, mirip pola visual "Unique Users" arc-chart pada referensi awal.
+- Saat sesi berjalan: `TaskItem` yang sedang difokuskan mendapat badge kecil live-updating (`● Fokus 12:34`, warna `--accent-primary`) di list; judul tab browser berubah jadi `(23:45) Nama Task — Orbita` agar tetap terlihat walau pindah tab.
+- Tombol kontrol di bawah timer: **Pause/Resume** (ikon `Pause`/`Play`) dan **Cancel** (ikon `X`, dengan dialog konfirmasi singkat "Yakin batalkan sesi?").
+- Progress bar linear tipis (4px) di bagian bawah panel sebagai representasi visual sekunder selain ring.
+- Saat sesi selesai: micro-celebration ringan (Framer Motion — ring timer scale 1 → 1.05 → 1 dengan warna berubah sekilas ke `--accent-positive`, durasi 0.4s, **bukan** animasi confetti berat) + toast "Sesi 25 menit selesai! Total fokus hari ini: 1j 15m".
+- `MetricCard` "Fokus Minggu Ini" di Overview memakai sparkline harian (7 bar, satu per hari) mengikuti spesifikasi MetricCard standar di DESIGN.md §4.1.
+
+---
+
+### 3.7 Fitur 7: AI Weekly Recap ("Life Digest")
+
+Mengubah AI Assistant dari reaktif (menunggu ditanya) menjadi proaktif: setiap minggu, AI merangkum aktivitas pengguna secara naratif dan personal — dikirim sebagai notifikasi, bukan hanya menunggu di chat.
+
+**User Stories**
+- Sebagai pengguna, saya ingin menerima ringkasan mingguan otomatis tentang produktivitas, agenda, dan keuangan saya, agar saya tidak perlu bertanya manual tiap minggu.
+- Sebagai pengguna, saya ingin recap dikirim di waktu yang bisa saya atur (default Minggu malam), agar pas untuk refleksi sebelum minggu baru dimulai.
+- Sebagai pengguna, saya ingin recap tersimpan sebagai riwayat yang bisa saya baca ulang kapan saja.
+
+**Acceptance Criteria**
+- [ ] **Vercel Cron** (mingguan) memanggil Route Handler `app/api/cron/weekly-recap/route.ts`, berjalan untuk setiap user yang punya minimal 1 aktivitas (task/event/transaksi/sesi fokus) dalam 7 hari terakhir.
+- [ ] Waktu eksekusi mengikuti preferensi per-user: kolom `profiles.weekly_recap_day_of_week` (default 0 = Minggu) & `profiles.weekly_recap_hour` (default 20) dikonversi dari `profiles.timezone` ke UTC saat query cron berjalan (cron sendiri tetap jalan per-jam, lalu filter user yang jadwalnya cocok pada jam tsb).
+- [ ] Pipeline: agregasi SQL (task selesai/pending minggu ini, 3 event terdekat minggu depan, total income/expense + kategori terbesar, total & rata-rata sesi fokus) → dikirim sebagai context terstruktur ke Gemini Flash dengan instruksi: *ringkasan naratif hangat, Bahasa Indonesia santai, maksimal ~150 kata, sertakan 1 observasi menarik + 1 saran actionable untuk minggu depan*.
+- [ ] Hasil disimpan ke tabel `weekly_recaps` (unique per `user_id` + `week_start_date`, mencegah duplikat jika cron re-run).
+- [ ] Setelah tersimpan → kirim push notification ("📊 Recap mingguanmu sudah siap!") + insert row `notifications` (`type = 'weekly_recap'`).
+- [ ] Section **"Recap"** (tab baru atau sub-tab di Overview) menampilkan daftar recap historis, terbaru di atas, dikelompokkan per minggu.
+- [ ] User dapat menonaktifkan fitur ini dan mengatur hari+jam pengiriman lewat Settings (`weekly_recap_enabled`, `weekly_recap_day_of_week`, `weekly_recap_hour`).
+- [ ] Setiap recap card menampilkan 3 mini-stat ringkas (Task Selesai, Total Pengeluaran, Jam Fokus) di bawah teks naratif sebagai *quick-glance* sebelum membaca teks lengkap.
+
+**UI/UX**
+- **Recap Card** didesain seperti "kartu cerita", bukan kartu data biasa — beda dari `MetricCard`: background gradient subtle (`--bg-surface` → sedikit tint `--accent-primary/6%`), sudut lebih besar (20px radius), padding lebih lega (24px).
+- Header card: judul "Recap Minggu Ini · 11–17 Agustus" + ikon `Calendar` kecil di kiri judul.
+- Body: teks naratif AI dirender sebagai markdown-lite (bold otomatis pada angka-angka penting), ukuran font sedikit lebih besar dari body standar (16px vs 14px) agar terasa seperti "membaca", bukan "scan data".
+- Footer: 3 chip mini-stat horizontal dengan ikon (`✅ 12 Task`, `💰 -Rp850rb`, `⏱ 3j 20m Fokus`), masing-masing pill kecil dengan background `--bg-surface-raised`.
+- Indikator recap baru: badge notifikasi merah kecil pada ikon lonceng di TopBar dan pada nav item "Recap"/"AI Assistant" di sidebar, hilang otomatis setelah card dibuka.
+- Animasi: recap terbaru muncul dengan fade + slide-up 8px saat tab dibuka pertama kali; daftar recap lama muncul staggered (0.05s) saat di-scroll ke bawah.
+
+---
+
+### 3.8 Fitur 8: Cross-Domain Insight ("Pola Tersembunyi")
+
+Fitur pembeda utama Orbita: AI mencari korelasi antar tiga domain data (task, agenda, keuangan) yang tidak mungkin ditemukan aplikasi single-purpose — disajikan sebagai observasi pasif, bukan jawaban atas pertanyaan.
+
+**User Stories**
+- Sebagai pengguna, saya ingin AI menemukan pola/korelasi tersembunyi antara aktivitas, agenda, dan keuangan saya yang tidak saya sadari sendiri.
+- Sebagai pengguna, saya ingin insight ini muncul otomatis di dashboard tanpa perlu saya tanya, agar terasa seperti asisten yang benar-benar memperhatikan kebiasaan saya.
+
+**Acceptance Criteria**
+- [ ] Insight digenerate sebagai bagian dari job mingguan yang sama dengan Weekly Recap (§3.7) — sekali per minggu, agar hemat biaya AI dan cukup data historis untuk pola yang bermakna.
+- [ ] Pipeline: jalankan sekumpulan query agregasi cross-table yang telah ditentukan (contoh candidate metrics — lihat §7.5) → hasil agregasi (angka & ringkasan statistik, bukan raw rows) dikirim ke Gemini dengan instruksi: *temukan 1–2 pola paling menarik dari data berikut, jelaskan dengan bahasa sederhana, gunakan frasa "cenderung"/"terlihat pola", hindari klaim sebab-akibat pasti*.
+- [ ] **Guardrail khusus**: AI wajib membingkai hasil sebagai observasi statistik ringan, bukan diagnosis atau nasihat medis/psikologis — mencegah AI membuat klaim kausal berlebihan dari data terbatas.
+- [ ] Insight **hanya** digenerate jika tersedia minimal 14 hari histori aktivitas yang mencakup ≥2 domain berbeda; jika data belum cukup, tidak ada kartu insight yang ditampilkan (lebih baik kosong daripada insight generik/mengada-ada).
+- [ ] Hasil disimpan di tabel `cross_domain_insights` (`insight_text`, `supporting_stats` jsonb, `dismissed_at`).
+- [ ] Maksimal **1 insight aktif** ditampilkan per minggu (hindari menumpuk kartu dan terasa spam).
+- [ ] User dapat men-*dismiss* kartu; setelah dismiss, tidak muncul lagi sampai insight minggu berikutnya siap.
+
+**UI/UX**
+- **Insight Card**: ukuran kecil, ditempatkan di Overview tab tepat di bawah baris `MetricCard` utama. Desain sengaja dibedakan dari kartu metrik: border-left aksen 3px (`--accent-primary`), background tinted (`--accent-primary/8%`), ikon `Lightbulb` (Lucide) di kiri atas.
+- Isi: 1–2 kalimat insight, dengan angka/korelasi kunci di-bold. Tombol tutup (`X`) kecil di pojok kanan atas card.
+- CTA opsional di baris bawah card: **"Tanya AI lebih lanjut →"** — membuka AI Assistant panel dengan insight tsb sudah ter-prefill sebagai pesan pembuka, memudahkan user menggali lebih dalam.
+- Animasi: fade + scale dari `0.95 → 1` saat dashboard pertama dimuat, dengan delay setelah stagger `MetricCard` selesai (agar tidak menumpuk animasi bersamaan — lihat urutan motion di DESIGN.md §6).
+
+---
 
 ### 4.1 To-Do List
 - **Kanban ringan opsional**: selain list linear dengan drag-reorder, sediakan toggle view "Today / Upcoming / Someday" ala Things3 agar task tanpa tanggal tetap punya tempat.
@@ -180,6 +279,7 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 - **Recurring events** (v1.1): kolom `recurrence_rule` (RRULE string, standar iCal) agar event mingguan/bulanan tidak perlu dibuat manual berulang.
 - **Timezone-aware storage**: simpan semua waktu dalam `timestamptz` (UTC) di DB, konversi ke timezone browser di client — krusial karena Next.js SSR & Neon server berbeda timezone dari user.
 - **Google Calendar-style month grid** sebagai landing view (bukan cuma list), dengan dot density indicator sesuai jumlah item per tanggal — cocok dengan referensi calendar picker minimalis yang di-share.
+- **Attendance sebagai sinyal konsistensi** (v1.2): untuk event dengan `track_attendance = true` yang berulang (mis. "Gym" tiap Senin), tampilkan mini-streak (mis. "Hadir 4 dari 5 minggu terakhir") — bisa jadi salah satu input tambahan untuk pipeline Weekly Recap (§7.5) tanpa perlu tabel baru, cukup agregasi `attendance_status` per judul event yang sama.
 
 ### 4.3 Income & Expense Tracker
 - **Derived balance via SQL VIEW**, bukan trigger yang menulis ulang kolom — mengurangi race condition saat banyak transaksi dibuat cepat berurutan.
@@ -197,6 +297,21 @@ Orbita adalah personal dashboard & productivity hub berbasis web (PWA) yang meny
 - **Streaming response** (SSE) dari Edge Function ke client agar terasa responsif seperti di referensi UI (bubble chat dengan efek "Thinking...").
 - **Konteks ringkas terkompresi**: gunakan agregasi SQL (SUM, COUNT, GROUP BY) sebelum masuk prompt, bukan raw rows — hemat token & lebih akurat.
 - **Audit log AI**: simpan setiap prompt+response (metadata saja jika perlu privasi) untuk debugging guardrail & evaluasi kualitas.
+
+### 4.6 Focus Session
+- **Web Worker untuk timer**: jalankan countdown di Web Worker (bukan `setInterval` di main thread) agar tetap akurat walau tab di-throttle browser saat inactive.
+- **Auto-pause detection** (v1.2): deteksi jika user idle terlalu lama (mis. tidak ada interaksi mouse/keyboard >5 menit) dan tawarkan pause otomatis, mencegah data fokus palsu.
+- **Integrasi dengan AI Assistant**: expose tool `get_focus_summary(range)` agar AI bisa menjawab "berapa jam fokus saya minggu ini" secara akurat, konsisten dengan pola function-calling di §4.5.
+
+### 4.7 AI Weekly Recap
+- **Idempotency key ketat**: constraint `unique(user_id, week_start_date)` di DDL mencegah recap ganda jika cron retry — penting karena generation call ke Gemini punya biaya.
+- **Fallback template**: jika Gemini API gagal/timeout saat generation, simpan recap versi "template" (angka mentah tanpa narasi AI) agar user tetap dapat sesuatu, lalu retry narasi di background.
+- **Preview sebelum kirim** (v1.2): opsi user melihat draft recap di in-app sebelum notifikasi push dikirim, mengurangi rasa "dikejutkan" oleh notifikasi.
+
+### 4.8 Cross-Domain Insight
+- **Predefined metric library**: simpan daftar kandidat query korelasi sebagai konfigurasi terpisah (bukan hardcode di prompt), sehingga mudah menambah pola baru tanpa mengubah pipeline inti — lihat contoh di §7.5.
+- **Feedback loop**: tambahkan tombol kecil "Insight ini membantu?" (👍/👎) di card, hasilnya disimpan untuk evaluasi kualitas prompt insight dari waktu ke waktu (v1.2).
+- **Batasi ke pola robust secara statistik**: hanya tampilkan insight dari metrik dengan cukup sampel (mis. minimal 5 kejadian dari masing-masing kondisi yang dibandingkan) agar tidak menyimpulkan dari kebetulan/data terlalu sedikit.
 
 ---
 
@@ -277,12 +392,22 @@ create table public.events (
   support_link text check (support_link is null or (char_length(support_link) <= 2048 and support_link ~ '^https?://')),
   event_at timestamptz not null,
   event_end_at timestamptz,
+  track_attendance boolean not null default false,
+  attendance_status text check (attendance_status in ('attended','not_attended')),
+  attendance_marked_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint events_time_range_check check (event_end_at is null or event_end_at > event_at)
+  constraint events_time_range_check check (event_end_at is null or event_end_at > event_at),
+  -- attendance_status hanya boleh terisi jika tracking diaktifkan untuk event ini
+  constraint events_attendance_requires_tracking check (
+    attendance_status is null or track_attendance = true
+  )
 );
 
 create index idx_events_user_time on public.events(user_id, event_at);
+create index idx_events_attendance_pending
+  on public.events(user_id, event_at)
+  where track_attendance = true and attendance_status is null;
 
 alter table public.events enable row level security;
 
@@ -447,6 +572,84 @@ create policy "Users manage own push subscriptions"
   with check (auth.user_id() = user_id);
 
 -- ============================================================
+-- FOCUS SESSIONS
+-- ============================================================
+create table public.focus_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references neon_auth."user"(id) on delete cascade,
+  task_id uuid references public.tasks(id) on delete set null,
+  planned_duration_seconds int not null check (planned_duration_seconds between 60 and 10800),
+  actual_duration_seconds int not null default 0,
+  status text not null default 'running' check (status in ('running','completed','cancelled')),
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index idx_focus_user_started on public.focus_sessions(user_id, started_at desc);
+
+alter table public.focus_sessions enable row level security;
+
+create policy "Users manage own focus sessions"
+  on public.focus_sessions for all
+  using (auth.user_id() = user_id)
+  with check (auth.user_id() = user_id);
+
+-- ============================================================
+-- WEEKLY RECAPS (AI Life Digest)
+-- ============================================================
+create table public.weekly_recaps (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references neon_auth."user"(id) on delete cascade,
+  week_start_date date not null,
+  week_end_date date not null,
+  content text not null,
+  stats_snapshot jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  unique (user_id, week_start_date)
+);
+
+create index idx_weekly_recaps_user on public.weekly_recaps(user_id, week_start_date desc);
+
+alter table public.weekly_recaps enable row level security;
+
+create policy "Users manage own weekly recaps"
+  on public.weekly_recaps for all
+  using (auth.user_id() = user_id)
+  with check (auth.user_id() = user_id);
+
+-- Preferensi jadwal recap, ditambahkan ke tabel profiles
+alter table public.profiles
+  add column weekly_recap_enabled boolean not null default true,
+  add column weekly_recap_day_of_week smallint not null default 0
+    check (weekly_recap_day_of_week between 0 and 6), -- 0 = Minggu ... 6 = Sabtu
+  add column weekly_recap_hour smallint not null default 20
+    check (weekly_recap_hour between 0 and 23);
+
+-- ============================================================
+-- CROSS-DOMAIN INSIGHTS ("Pola Tersembunyi")
+-- ============================================================
+create table public.cross_domain_insights (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references neon_auth."user"(id) on delete cascade,
+  insight_text text not null,
+  supporting_stats jsonb not null default '{}',
+  generated_at timestamptz not null default now(),
+  dismissed_at timestamptz
+);
+
+create index idx_insights_user_active
+  on public.cross_domain_insights(user_id)
+  where dismissed_at is null;
+
+alter table public.cross_domain_insights enable row level security;
+
+create policy "Users manage own insights"
+  on public.cross_domain_insights for all
+  using (auth.user_id() = user_id)
+  with check (auth.user_id() = user_id);
+
+-- ============================================================
 -- HANDLE NEW USER: seed default pocket + kategori
 -- ============================================================
 -- Tabel `neon_auth."user"` dikelola oleh Managed Better Auth. Aplikasi tidak
@@ -497,7 +700,7 @@ create table public.notifications (
   user_id uuid not null references neon_auth."user"(id) on delete cascade,
   title text not null,
   body text,
-  type text not null check (type in ('task_due','event_reminder','system')),
+  type text not null check (type in ('task_due','event_reminder','weekly_recap','cross_domain_insight','system')),
   read_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -561,8 +764,65 @@ Contoh kerangka system prompt (disederhanakan):
   - `suggest_create_task(title, due_at)` → mengembalikan draft, bukan langsung insert.
 
 ### 7.4 Rate Limiting & Biaya
-- Kolom `profiles.ai_daily_request_count` + `ai_request_reset_at` di-reset harian via cron; Edge Function menolak request jika limit tercapai (default 30/hari, dapat dikonfigurasi per tier).
+- Kolom `profiles.ai_daily_request_count` + `ai_request_reset_at` di-reset secara lazy saat hari berganti menurut timezone akun; route AI menolak request jika limit tercapai (default 30/hari, dapat dikonfigurasi per tier).
 - Logging token usage per request untuk monitoring biaya Gemini Flash.
+
+### 7.5 Pipeline Proaktif: Weekly Recap & Cross-Domain Insight
+
+Berbeda dari §7.1 (chat on-demand, dipicu user), pipeline ini **dipicu oleh cron**, berjalan sekali per minggu per user, dan hasilnya disimpan sebelum ditampilkan (bukan streaming real-time).
+
+**Alur:**
+```
+Vercel Cron (hourly) → app/api/cron/weekly-recap/route.ts
+  → Validasi header CRON_SECRET
+  → Query users dimana weekly_recap_enabled = true
+      dan jam lokal saat ini (berdasarkan profiles.timezone) cocok
+      dengan weekly_recap_day_of_week + weekly_recap_hour
+  → Untuk tiap user:
+      1. Cek: apakah weekly_recaps untuk week_start_date ini sudah ada? → skip jika ya (idempotent)
+      2. Jalankan agregasi SQL (lihat 7.5.1)
+      3. Cek syarat cukup data untuk insight (≥14 hari histori, ≥2 domain) → jika tidak cukup, lewati generation insight (tetap lanjut generate recap)
+      4. Panggil Gemini Flash 2x secara terpisah (recap naratif & insight korelasi) — dipisah agar guardrail masing-masing lebih presisi, lihat 7.5.2
+      5. Simpan ke weekly_recaps dan (jika ada) cross_domain_insights
+      6. Kirim push notification + insert notifications row untuk masing-masing yang berhasil dibuat
+```
+
+**7.5.1 Contoh agregasi & kandidat metrik korelasi (predefined library, bukan hardcode di prompt)**
+Sekumpulan query siap pakai yang hasilnya dikirim ke Gemini sebagai bahan mencari pola (Gemini **tidak** menghitung sendiri dari raw data):
+```sql
+-- Rata-rata pengeluaran pada hari dengan task pending menumpuk (>5) vs hari normal
+select
+  (task_pending_count > 5) as high_pending_day,
+  avg(daily_expense) as avg_expense
+from (
+  select
+    d::date as day,
+    (select count(*) from tasks t where t.user_id = $1 and t.status='pending' and t.due_at::date = d) as task_pending_count,
+    coalesce((select sum(amount) from transactions tr where tr.user_id = $1 and tr.type='expense' and tr.transaction_date = d), 0) as daily_expense
+  from generate_series(current_date - interval '28 days', current_date, interval '1 day') d
+) daily
+group by high_pending_day;
+
+-- Rata-rata jam fokus pada hari dengan vs tanpa event pagi (sebelum jam 12)
+select
+  exists(
+    select 1 from events e
+    where e.user_id = $1 and e.event_at::date = f.day and extract(hour from e.event_at) < 12
+  ) as has_morning_event,
+  avg(f.total_focus_seconds) / 3600.0 as avg_focus_hours
+from (
+  select started_at::date as day, sum(actual_duration_seconds) as total_focus_seconds
+  from focus_sessions
+  where user_id = $1 and status = 'completed' and started_at > current_date - interval '28 days'
+  group by started_at::date
+) f
+group by has_morning_event;
+```
+Hasil kedua query ini (angka rata-rata per kondisi) yang dikirim ke Gemini — bukan baris mentah — agar AI tinggal menarasikan perbandingan, bukan menghitung ulang (mencegah kesalahan aritmatika oleh model).
+
+**7.5.2 Prompt terpisah untuk 2 tujuan berbeda**
+- **Prompt Recap** (nada hangat, personal, ringkasan): fokus pada apa yang **terjadi** minggu ini.
+- **Prompt Insight** (nada analitis-ringan, hati-hati secara statistik): fokus pada **pola/korelasi**, dengan instruksi eksplisit menghindari klaim sebab-akibat ("gunakan 'cenderung'/'terlihat pola', bukan 'karena'/'menyebabkan'") dan syarat minimal sampel (≥5 kejadian per kondisi yang dibandingkan) sebelum insight dianggap layak ditampilkan — jika sampel kurang, Route Handler menahan hasil dan tidak menyimpannya ke `cross_domain_insights`.
 
 ---
 
@@ -584,8 +844,8 @@ Contoh kerangka system prompt (disederhanakan):
 | Fase | Scope |
 |---|---|
 | **MVP (v1.0)** | Auth + verifikasi email, To-Do CRUD + drag-reorder + history, Event + default reminder, Ledger dasar (1+ pocket, transaksi, saldo real-time), AI Assistant read-only Q&A dengan guardrail, Web Push dasar, PWA installable |
-| **v1.1** | Recurring events, subtasks, budget cap kategori, AI dapat submit draft task/transaksi (dengan konfirmasi), export CSV |
-| **v1.2** | Magic link login, onboarding checklist, offline-first improvements, multi-currency ringan |
+| **v1.1** | Recurring events, subtasks, budget cap kategori, AI dapat submit draft task/transaksi (dengan konfirmasi), export CSV, **Focus Session (Deep Work Timer)** |
+| **v1.2** | Magic link login, onboarding checklist, offline-first improvements, multi-currency ringan, **AI Weekly Recap**, **Cross-Domain Insight** |
 
 ---
 
@@ -659,10 +919,16 @@ Buat/edit `vercel.json` di root project:
     {
       "path": "/api/cron/check-reminders",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/weekly-recap",
+      "schedule": "0 * * * *"
     }
   ]
 }
 ```
+`weekly-recap` dijalankan **setiap jam** (bukan sekali seminggu secara langsung) karena Route Handler-nya sendiri yang memfilter user mana yang jadwalnya cocok pada jam berjalan saat itu (lihat logika filter di §7.5) — pendekatan ini menghindari masalah "semua user dapat recap di jam yang sama" dan tetap menghormati preferensi timezone/jam masing-masing user.
+
 Di `app/api/cron/check-reminders/route.ts`, validasi request datang dari Vercel Cron (bukan publik):
 ```ts
 export async function GET(req: Request) {

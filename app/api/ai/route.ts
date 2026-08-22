@@ -1,9 +1,9 @@
 import { getAuthenticatedDatabase } from "@/lib/db/server";
 import { AssistantStreamEvent, AssistantSuggestion } from "@/lib/assistant";
+import { AI_DAILY_LIMIT, dailyLimitState } from "@/lib/ai-limit";
 
 export const runtime = "nodejs";
 
-const DAILY_LIMIT = 30;
 const encoder = new TextEncoder();
 
 type HistoryRow = { role: "user" | "assistant"; content: string };
@@ -64,12 +64,10 @@ export async function POST(request: Request) {
     if (firstError) throw new Error("Konteks akun belum dapat dibaca.");
 
     const profileData = profile.data as { ai_daily_request_count: number; ai_request_reset_at: string; timezone: string };
-    const resetExpired = new Date(profileData.ai_request_reset_at) <= now;
-    const currentCount = resetExpired ? 0 : Number(profileData.ai_daily_request_count);
-    if (currentCount >= DAILY_LIMIT) return Response.json({ error: "Batas 30 pertanyaan hari ini sudah tercapai. Coba lagi setelah limit diperbarui." }, { status: 429 });
+    const limit = dailyLimitState(profileData.ai_daily_request_count, profileData.ai_request_reset_at, now, profileData.timezone || "Asia/Makassar");
+    if (limit.used >= AI_DAILY_LIMIT) return Response.json({ error: `Batas ${AI_DAILY_LIMIT} pertanyaan hari ini sudah tercapai. Coba lagi besok.` }, { status: 429 });
 
-    const nextReset = resetExpired ? new Date(now.getTime() + 24 * 86_400_000).toISOString() : profileData.ai_request_reset_at;
-    const counter = await db.from("profiles").update({ ai_daily_request_count: currentCount + 1, ai_request_reset_at: nextReset, updated_at: now.toISOString() }).eq("id", user.id);
+    const counter = await db.from("profiles").update({ ai_daily_request_count: limit.used + 1, ai_request_reset_at: limit.nextReset, updated_at: now.toISOString() }).eq("id", user.id);
     if (counter.error) throw new Error("Limit penggunaan belum dapat diperbarui.");
 
     const transactionRows = transactions.data as TransactionRow[];
